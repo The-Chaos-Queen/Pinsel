@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.nbc
+*.nbi
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+Thumbs.db
+
+# Generated artwork and local canvas checkpoints
+/output/
+*.[pP][nN][gG]
+*.[gG][iI][fF]
+*.jpg
+*.jpeg
+*.webp
+*.tif
+*.tiff
+*.npz

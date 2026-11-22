@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pinsel"
+version = "0.1.0"
+description = "A physically inspired painting engine for Python with 12-band Kubelka-Munk pigments, bristle simulation, fluid watercolour, dry media, and monotype printmaking."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "numba>=0.59",
+    "Pillow>=10",
+]
+
+[tool.setuptools.packages.find]
+include = ["pinsel*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
