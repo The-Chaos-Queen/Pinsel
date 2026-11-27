@@ -74,5 +74,17 @@ ps.KneadedEraser(size=30, strength=1.0).stroke(cv, P.line((100, 20), (140, 300))
 cv.stroke(sticks[1], P.line((50, 30), (430, 30)), pressure=0.9)
 er.stroke(cv, P.line((200, 20), (260, 50)), pressure=0.9)
 
+# many short random strokes: enough calls that verify.sh also compares the
+# full-canvas checkpoint every 1000th call of each kernel
+rs = np.random.default_rng(21)
+small_er = ps.KneadedEraser(size=7, strength=0.3)
+for i in range(1100):
+    st = sticks[i % 3] if i % 4 else vine
+    x, y = rs.uniform(10, 470), rs.uniform(10, 310)
+    a = rs.uniform(0, 6.28)
+    cv.stroke(st, P.line((x, y), (x + 14 * np.cos(a), y + 14 * np.sin(a))), pressure=float(rs.uniform(0.15, 1.0)))
+    if i % 2:
+        small_er.stroke(cv, P.line((x, y), (x + 9, y + 5)), pressure=0.7)
+
 cv.save(os.path.join(OUT, 'pastel_demo.png'))
 print('film_vol sum', float(cv.film_vol.sum()), 'base_vol sum', float(cv.base_vol.sum()))
