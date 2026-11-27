@@ -22,6 +22,8 @@ find "$COPY" -name __pycache__ -prune -exec rm -rf {} +
 # fastmath off everywhere (decorators and njit(...) calls)
 grep -rl "fastmath=True" "$COPY/pinsel" | xargs sed -i 's/fastmath=True/fastmath=False/g'
 echo "fastmath left on: $(grep -rc 'fastmath=True' "$COPY/pinsel" | awk -F: '{s+=$2} END {print s}')"
+# guard: the runs must import the copy
+(cd "$COPY" && PYTHONPATH="$COPY" "$V" -c "import pinsel, sys; assert pinsel.__file__.startswith('$COPY'), pinsel.__file__") || { echo "verify: pinsel does not import from the copy"; exit 2; }
 T=$COPY/traces; mkdir -p "$T"
 status=0
 for ex in "$@"; do
@@ -29,7 +31,9 @@ for ex in "$@"; do
   for be in numba rust; do
     rm -rf "$COPY/output"; mkdir -p "$COPY/output"
     t0=$(date +%s.%N)
-    if ! (cd "$COPY" && PINSEL_BACKEND=$be PINSEL_TRACE=$T/$name.$be "$V" "$ex" > "$T/$name.$be.log" 2>&1); then
+    # PYTHONPATH: examples without their own sys.path line must import the
+    # fastmath-off copy, not the editable install (found by the tools-film porter)
+    if ! (cd "$COPY" && PYTHONPATH="$COPY" PINSEL_BACKEND=$be PINSEL_TRACE=$T/$name.$be "$V" "$ex" > "$T/$name.$be.log" 2>&1); then
       echo "== $name: FAILED under $be (log $T/$name.$be.log)"; tail -5 "$T/$name.$be.log"; status=1; continue 2
     fi
     t1=$(date +%s.%N)
