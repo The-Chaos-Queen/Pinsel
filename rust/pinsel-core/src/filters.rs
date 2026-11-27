@@ -135,13 +135,10 @@ fn pairwise_sum(a: &[f64]) -> f64 {
     }
 }
 
-/// `np.sum(a)` for a contiguous float64 vector: add.reduce starts from the
-/// first element and pairwise-sums the rest.
+/// `np.sum(a)` for a contiguous float64 vector (pairwise over all of it;
+/// checked against numpy 2.5 for n = 1..400).
 pub fn np_sum(a: &[f64]) -> f64 {
-    match a.len() {
-        0 => 0.0,
-        _ => a[0] + pairwise_sum(&a[1..]),
-    }
+    pairwise_sum(a)
 }
 
 // ---------------------------------------------------------------------------
@@ -289,12 +286,24 @@ pub fn correlate1d<T: Elem>(a: &[T], shape: &[usize], axis: usize, w: &[f64], mo
 /// `scipy.ndimage.gaussian_filter(a, sigma, mode=mode, truncate=truncate)`
 /// with one sigma per axis; axes with sigma <= 1e-15 are skipped.
 pub fn gaussian_filter<T: Elem>(a: &[T], shape: &[usize], sigmas: &[f64], mode: Mode, truncate: f64) -> Vec<T> {
+    let kernels: Vec<Option<Vec<f64>>> = sigmas
+        .iter()
+        .map(|&sd| if sd > 1e-15 { Some(gaussian_kernel1d(sd, gaussian_radius(sd, truncate))) } else { None })
+        .collect();
+    gaussian_filter_with(a, shape, &kernels, mode)
+}
+
+/// Gaussian filter with the per-axis kernels given (`None` = skip the
+/// axis). The kernels are in `x = -r..=r` order, as `_gaussian_kernel1d`
+/// returns them. The Python shim passes kernels computed with numpy so
+/// that they match scipy bit for bit even where numpy's SIMD `exp` differs
+/// from the system libm.
+pub fn gaussian_filter_with<T: Elem>(a: &[T], shape: &[usize], kernels: &[Option<Vec<f64>>], mode: Mode) -> Vec<T> {
     let mut cur: Vec<T> = a.to_vec();
     let mut tmp: Vec<T> = vec![T::default(); a.len()];
-    for (axis, &sd) in sigmas.iter().enumerate() {
-        if sd > 1e-15 {
-            let lw = gaussian_radius(sd, truncate);
-            let mut w = gaussian_kernel1d(sd, lw);
+    for (axis, k) in kernels.iter().enumerate() {
+        if let Some(k) = k {
+            let mut w = k.clone();
             w.reverse();
             correlate1d_pass(&cur, &mut tmp, shape, axis, &w, mode, 0.0);
             std::mem::swap(&mut cur, &mut tmp);
@@ -339,6 +348,7 @@ pub fn uniform_filter<T: Elem>(a: &[T], shape: &[usize], size: usize, mode: Mode
             for r in run.iter_mut() {
                 *r = 0.0;
             }
+            // running (un-normalised) window sum, divided on output
             for ll in 0..size as i64 {
                 let t = tap(ll - size1);
                 for e in 0..inner {
@@ -349,8 +359,7 @@ pub fn uniform_filter<T: Elem>(a: &[T], shape: &[usize], size: usize, mode: Mode
                 }
             }
             for e in 0..inner {
-                run[e] /= fsz;
-                tmp[o * n * inner + e] = T::from_f64(run[e]);
+                tmp[o * n * inner + e] = T::from_f64(run[e] / fsz);
             }
             for ll in 1..n as i64 {
                 let add = tap(ll + size as i64 - 1 - size1);
@@ -364,8 +373,8 @@ pub fn uniform_filter<T: Elem>(a: &[T], shape: &[usize], size: usize, mode: Mode
                         Some(b) => cur[b + e].to_f64(),
                         None => cval,
                     };
-                    run[e] += (x - y) / fsz;
-                    tmp[(o * n + ll as usize) * inner + e] = T::from_f64(run[e]);
+                    run[e] += x - y;
+                    tmp[(o * n + ll as usize) * inner + e] = T::from_f64(run[e] / fsz);
                 }
             }
         }

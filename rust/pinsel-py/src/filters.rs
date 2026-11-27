@@ -45,20 +45,32 @@ fn to_array<'py, T: numpy::Element>(py: Python<'py>, data: Vec<T>, shape: &[usiz
 }
 
 #[pyfunction]
-#[pyo3(signature = (a, sigmas, mode, truncate=4.0))]
+#[pyo3(signature = (a, sigmas, mode, truncate=4.0, kernels=None))]
 fn filters_gaussian_filter<'py>(
     py: Python<'py>,
     a: &Bound<'py, PyAny>,
     sigmas: Vec<f64>,
     mode: &str,
     truncate: f64,
+    kernels: Option<Vec<Vec<f64>>>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let m = mode_of(mode)?;
     with_float!(py, a, x, shape, T, {
         if sigmas.len() != shape.len() {
             return Err(PyValueError::new_err("sigma must have one entry per axis"));
         }
-        let out: Vec<T> = py.detach(|| f::gaussian_filter::<T>(x, &shape, &sigmas, m, truncate));
+        let out: Vec<T> = match &kernels {
+            // explicit per-axis kernels (empty = skip the axis)
+            Some(ks) => {
+                if ks.len() != shape.len() {
+                    return Err(PyValueError::new_err("kernels must have one entry per axis"));
+                }
+                let ks: Vec<Option<Vec<f64>>> =
+                    ks.iter().map(|k| if k.is_empty() { None } else { Some(k.clone()) }).collect();
+                py.detach(|| f::gaussian_filter_with::<T>(x, &shape, &ks, m))
+            }
+            None => py.detach(|| f::gaussian_filter::<T>(x, &shape, &sigmas, m, truncate)),
+        };
         to_array(py, out, &shape)
     })
 }
