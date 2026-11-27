@@ -12,6 +12,9 @@ Environment:
                              with numba's result, so the run stays the old
                              engine's run (the stage A kernel test)
   PINSEL_AB_LOG=path         where to write the per-call JSON lines
+  PINSEL_TRACE=prefix        after every call of a ported kernel, write a hash
+                             of the touched canvas region to <prefix>.<kernel>;
+                             rust/harness/first_divergence.py compares runs
 """
 from __future__ import annotations
 
@@ -102,18 +105,61 @@ class _AB:
             self.log.close()
 
 
-def _pick(name, mutable):
+TRACE = os.environ.get('PINSEL_TRACE', '')
+
+
+class _Trace:
+    """Write a hash of the touched canvas region after every call (Derek):
+    two runs are bit-identical up to the first line where the hashes differ.
+    Every 1000th call also hashes the whole canvas, which catches divergence
+    caused outside this kernel."""
+
+    def __init__(self, fn, path, canvas_args):
+        import hashlib
+        self._hl = hashlib
+        self.fn, self.canvas_args = fn, canvas_args
+        self.f = open(path, 'w', encoding='utf-8')
+        self.n = 0
+        atexit.register(self.f.close)
+
+    def __call__(self, *args):
+        bb = self.fn(*args)
+        self.n += 1
+        x0, y0, x1, y1 = map(int, bb)
+        h = self._hl.blake2b(digest_size=10)
+        h.update(np.array([x0, y0, x1, y1], np.int64).tobytes())
+        if x1 >= 0:
+            H, W = args[self.canvas_args[0]].shape[:2]
+            ya, yb, xa, xb = max(0, y0 - 2), min(H, y1 + 3), max(0, x0 - 2), min(W, x1 + 3)
+            for i in self.canvas_args:
+                h.update(np.ascontiguousarray(args[i][ya:yb, xa:xb]).tobytes())
+        full = '-'
+        if self.n % 1000 == 0:
+            g = self._hl.blake2b(digest_size=10)
+            for i in self.canvas_args:
+                g.update(np.ascontiguousarray(args[i]).tobytes())
+            full = g.hexdigest()
+        self.f.write(f'{self.n} {h.hexdigest()} {full}\n')
+        return bb
+
+
+def _pick(name, mutable, canvas_args=()):
     numba_fn = getattr(_nb, name)
     rust_fn = getattr(_rs, name, None) if _rs is not None else None
     if rust_fn is None:
-        return numba_fn
-    if AB_EVERY > 0:
+        fn = numba_fn
+    elif AB_EVERY > 0:
         return _AB(name, rust_fn, numba_fn, mutable)
-    return rust_fn if USE_RUST else numba_fn
+    else:
+        fn = rust_fn if USE_RUST else numba_fn
+    if TRACE and canvas_args:
+        return _Trace(fn, f'{TRACE}.{name}', canvas_args)
+    return fn
 
 
 # Ported kernels. Mutable argument positions follow _kernels.paste_stroke.
 paste_stroke = _pick('paste_stroke', {
     12: 'tips', 13: 'res_K', 14: 'res_S', 15: 'res_vol', 17: 'tip_K', 18: 'tip_S',
     19: 'tip_vol', 35: 'film_K', 36: 'film_S', 37: 'film_vol', 38: 'wet', 39: 'gloss',
-    40: 'body', 41: 'drate', 45: 'base_K', 46: 'base_S', 47: 'base_vol', 48: 'top_id'})
+    40: 'body', 41: 'drate', 45: 'base_K', 46: 'base_S', 47: 'base_vol', 48: 'top_id'},
+    canvas_args=(37, 35, 36, 38, 39, 40, 41, 45, 46, 47, 48))   # film_vol first (gives H, W)
