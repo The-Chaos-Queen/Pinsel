@@ -15,7 +15,7 @@
 //! The arrays are C-contiguous slices with an explicit `shape`; the
 //! bindings make them contiguous.
 
-use rustfft::num_complex::Complex64;
+pub use rustfft::num_complex::Complex64;
 use rustfft::FftPlanner;
 
 // ---------------------------------------------------------------------------

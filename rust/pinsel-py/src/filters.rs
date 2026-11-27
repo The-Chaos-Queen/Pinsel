@@ -10,7 +10,7 @@ use pcore::filters::Mode;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
-use rustfft::num_complex::Complex64 as FComplex;
+use pcore::filters::Complex64 as FComplex;
 
 use crate::util::ro;
 
