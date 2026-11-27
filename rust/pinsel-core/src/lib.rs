@@ -7,6 +7,7 @@
 
 pub mod grid;
 pub mod paste;
+pub mod fluid;
 
 // Stage A: one module per package; each is owned by one porter.
 pub mod spectral;
