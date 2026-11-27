@@ -327,6 +327,23 @@ class Canvas:
         level = np.exp(-paint_h * LEVELING)
         return self.h_ground[sl] * level + paint_h
 
+    # Strip-wise output (stage A memory item): save/to_image/preview render
+    # about this many pixels at a time, so the lighting's float64
+    # temporaries (blurs, gradients, normals, gloss) never exist at full size.
+    _STRIP_CELLS = 1 << 20
+    # Reach of the lighting filters, in pixels: blur(0.8) 3 + blur(1.3) 5 +
+    # gradient 1. A region rendered with this border gives exactly the same
+    # pixels as the full render.
+    _LIGHT_PAD = 10
+
+    def _strips(self, mult=1, height=None):
+        """Row ranges (y0, y1) covering ``height`` rows (default: all), each
+        a multiple of ``mult`` rows except possibly the last."""
+        height = self.H if height is None else height
+        rows = max(mult, (self._STRIP_CELLS // max(1, self.W)) // mult * mult)
+        for y0 in range(0, height, rows):
+            yield y0, min(height, y0 + rows)
+
     def render_linear(self, region=None):
         """Linear sRGB colour (without lighting), float32 (h, w, 3).
 
@@ -362,7 +379,7 @@ class Canvas:
         y0, y1, x0, x1 = self._parse_region(region)
         rgb = self.render_linear(region=(y0, y1, x0, x1)) * exposure
         if lighting:
-            pad = 6 if region is not None else 0
+            pad = self._LIGHT_PAD if region is not None else 0
             py0, py1 = max(0, y0 - pad), min(self.H, y1 + pad)
             px0, px1 = max(0, x0 - pad), min(self.W, x1 + pad)
             psl = (slice(py0, py1), slice(px0, px1))
@@ -399,8 +416,16 @@ class Canvas:
         return np.clip(linear_to_srgb(rgb), 0, 1).astype(np.float32)
 
     def to_image(self, **kw):
+        """8-bit PIL image of :meth:`render`, rendered in strips (same pixels,
+        a fraction of the memory)."""
         from PIL import Image
-        return Image.fromarray((self.render(**kw) * 255 + 0.5).astype(np.uint8))
+        if kw.get('region') is not None:
+            return Image.fromarray((self.render(**kw) * 255 + 0.5).astype(np.uint8))
+        kw.pop('region', None)
+        out = np.empty((self.H, self.W, 3), dtype=np.uint8)
+        for y0, y1 in self._strips():
+            out[y0:y1] = (self.render(region=(y0, y1, 0, self.W), **kw) * 255 + 0.5).astype(np.uint8)
+        return Image.fromarray(out)
 
     def save(self, path, **kw):
         img = self.to_image(**kw)
@@ -418,8 +443,12 @@ class Canvas:
         from PIL import Image
         f = max(1, int(round(1.0 / scale)))
         h, w = (self.H // f) * f, (self.W // f) * f
-        rgb = self.render_linear()[:h, :w].reshape(h // f, f, w // f, f, 3).mean(axis=(1, 3))
-        hgt = self.surface_height()[:h, :w].reshape(h // f, f, w // f, f).mean(axis=(1, 3))
+        rgb, hgt = [], []
+        for y0, y1 in self._strips(f, h):          # strips of whole f-row blocks
+            n = (y1 - y0) // f
+            rgb.append(self.render_linear(region=(y0, y1, 0, w)).reshape(n, f, w // f, f, 3).mean(axis=(1, 3)))
+            hgt.append(self.surface_height(region=(y0, y1, 0, w)).reshape(n, f, w // f, f).mean(axis=(1, 3)))
+        rgb, hgt = np.concatenate(rgb), np.concatenate(hgt)
         gy, gx = np.gradient(hgt.astype(np.float64))
         k = 0.9 / f
         L = np.asarray(light_dir, float); L /= np.linalg.norm(L)
