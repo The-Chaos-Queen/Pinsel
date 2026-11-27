@@ -316,8 +316,10 @@ class Brush:
                 else np.interp(s0 / L0, np.linspace(0, 1, len(pressure)), np.asarray(pressure, float))
             pts = np.column_stack([pts[:, :2], pcol])
             has_p = True
+        # seed=None: the brush's own seeded stream (fresh OS entropy before 2026-11-27)
+        g_hand = np.random.default_rng(seed) if seed is not None else self.rng
         if wobble > 0:
-            pts = _wobble(pts, amount=wobble, scale=max(20.0, 3 * self.size), seed=seed)
+            pts = _wobble(pts, amount=wobble, scale=max(20.0, 3 * self.size), seed=g_hand)
         rs = resample(pts, self.spacing)
         s = arclength(rs)
         L = max(s[-1], 1e-9)
@@ -332,7 +334,7 @@ class Brush:
             pp = np.full(len(t), float(pressure))
         pp = np.clip(np.asarray(pp, float), 0, 1)
         if pressure_jitter > 0:
-            g = np.random.default_rng(seed)
+            g = g_hand
             n = int(L / max(4.0, self.size)) + 4
             pp = np.clip(pp * (1 + pressure_jitter * np.interp(t * (n - 1), np.arange(n), g.normal(0, 1, n))), 0, 1)
         xy = rs[:, :2]

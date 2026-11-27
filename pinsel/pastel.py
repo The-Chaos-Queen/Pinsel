@@ -232,7 +232,8 @@ class SoftPastel:
             pa = np.full(4, math.radians(0.0 if angle is None else float(angle)), dtype=np.float64)
         else:
             if wobble > 0:
-                pts = _wobble(pts, amount=wobble, scale=max(18.0, 2.5 * self.size), seed=seed)
+                pts = _wobble(pts, amount=wobble, scale=max(18.0, 2.5 * self.size),
+                          seed=seed if seed is not None else self.rng)
             rs = resample(pts, spacing)
             s = arclength(rs)
             t = s / max(s[-1], 1e-9)

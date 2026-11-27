@@ -2731,7 +2731,8 @@ class Smudge:
         (False keeps the paint picked up by the previous smudge)."""
         if clean:
             self.clean()
-        prep = _prep_path(path, 0.7, pressure, 0.7, wobble=wobble, seed=seed)
+        prep = _prep_path(path, 0.7, pressure, 0.7, wobble=wobble,
+                          seed=seed if seed is not None else canvas.rng)
         if prep is None:
             return None
         xy, s, t, pp, phi = prep
@@ -2898,7 +2899,7 @@ def glaze(canvas, paint, thickness=0.12, region=None, feather=6.0, variation=0.1
                 simulation will move; False: perfectly flat dried wash
     water     : fluid paints only -- water depth of the wash (1 = puddle-wet)
     """
-    g = _rng(seed)
+    g = _rng(seed) if seed is not None else canvas.rng
     m = _region_map(canvas, region).astype(np.float64)
     if feather > 0:
         m = ndimage.gaussian_filter(m, feather)
@@ -2976,7 +2977,7 @@ class Stencil:
     @classmethod
     def tape(cls, canvas, p0, p1, width=20.0, torn=True, seed=None, **kw):
         """A strip of masking tape from p0 to p1 with (optionally) torn ends."""
-        g = _rng(seed)
+        g = _rng(seed) if seed is not None else canvas.rng
         p0 = np.asarray(p0, float); p1 = np.asarray(p1, float)
         d = p1 - p0
         L = np.linalg.norm(d) + 1e-9
@@ -2996,7 +2997,7 @@ class Stencil:
     @classmethod
     def masking_fluid(cls, canvas, path, width=6.0, seed=None, **kw):
         """Masking fluid painted along a path (blobby, slightly irregular)."""
-        g = _rng(seed)
+        g = _rng(seed) if seed is not None else canvas.rng
         pts = resample(np.asarray(path, float)[:, :2], 1.0)
         H, W = canvas.shape
         m = np.zeros((H, W), np.float32)
@@ -3110,7 +3111,7 @@ def stipple(canvas, pen, tone, region=None, max_density=None, dot_size=None, see
         # darkest tone: dots nearly touching
         max_density = 100.0 / (1.5 * dsz) ** 2
     pts = blue_noise_points((H, W), np.clip(t, 0, 1) * max_density, min_dist=max(min_d, 1.0),
-                            seed=seed)
+                            seed=seed if seed is not None else canvas.rng)
     if len(pts) == 0:
         canvas._after_stroke()
         return None

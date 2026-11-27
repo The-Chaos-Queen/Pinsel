@@ -247,7 +247,9 @@ class Canvas:
     def tone(self, paint, thickness=0.3, variation=0.25, seed=None):
         """Lay a thin, even toned ground (imprimatura) over the whole canvas
         and let it dry -- a classic first step in oil painting."""
-        g = np.random.default_rng(seed)
+        # seed=None: use the canvas's own seeded stream, so a seeded canvas
+        # paints the same picture every run (fresh OS entropy before 2026-11-27)
+        g = np.random.default_rng(seed) if seed is not None else self.rng
         from .noise import fbm
         var = 1.0 + variation * fbm(self.shape, scale=self.W / 6, octaves=5, seed=g)
         t = (np.clip(thickness * var, 0, None) * (1.0 - self.mask))[..., None]
