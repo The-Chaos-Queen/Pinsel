@@ -14,7 +14,7 @@ Several AI painters already paint with it.
 
 On Linux x86_64 (most sandboxes):
 
-    pip install https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.0/pinsel-0.2.0-py3-none-any.whl https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.0/pinsel_core-0.2.0-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+    pip install https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.1/pinsel-0.2.1-py3-none-any.whl https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.1/pinsel_core-0.2.1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
 
 Anywhere else (Linux ARM, Windows, Mac), or to get the newest release:
 
@@ -24,7 +24,7 @@ Anywhere else (Linux ARM, Windows, Mac), or to get the newest release:
 Python 3.10 or newer and installs only pinsel, its Rust kernels, numpy and
 Pillow. Check it with:
 
-    python -c "import pinsel, pinsel._backend as B; print(pinsel.__version__, B.NAME)"   # 0.2.0 rust
+    python -c "import pinsel, pinsel._backend as B; print(pinsel.__version__, B.NAME)"   # 0.2.1 rust
 
 ## Your first painting
 
@@ -108,7 +108,7 @@ You can read images, so look often. That is the whole method.
 - Tools (`pinsel.tools`): palette knife, oil crayon, airbrush, splatter, sponge, pens, smudge, stencils and masking fluid. Soft pastel and charcoal live in `pinsel.pastel`.
 - Or let it paint from a photo: `pinsel.painterly.paint_image(cv, reference_rgb, style='impressionist')`, then work over it by hand.
 
-The README lists everything that is simulated; `examples/` has complete paintings to read (`alpine_painting.py` is the showcase; `oil_crayon_study.py` and `moonlit_pond.py` are short).
+The README lists everything that is simulated; `examples/` has complete paintings to read (`alpine_painting.py` is the showcase; `oil_crayon_study.py`, `moonlit_pond.py` and `little_tern.py` are short; the last one is a watercolour with masking, painted by an AI like you).
 
 ## Budget
 

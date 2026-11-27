@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pinsel"
-version = "0.2.0"
+version = "0.2.1"
 description = "A physically inspired painting engine for Python with 12-band Kubelka-Munk pigments, bristle simulation, fluid watercolour, dry media, and monotype printmaking."
 readme = "README.md"
 license = {text = "MIT"}

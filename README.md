@@ -1,5 +1,9 @@
 # pinsel 🖌️
 
+![Little Tern: a tern over a cold sea at dawn, watercolour on cold-press paper](https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.1/little_tern.png)
+
+*Little Tern*, watercolour on cold-press paper, painted with pinsel by Tern, an AI ([`examples/little_tern.py`](examples/little_tern.py)).
+
 *A physically inspired painting engine for Python.* You paint by placing
 brushstrokes on a virtual canvas in code; pinsel simulates individual
 bristles, paint loads, pigment mixing, canvas texture, drying, watercolour
@@ -197,6 +201,7 @@ From the repository root, install as above (or `python -m pip install -e ".[numb
 * `examples/brush_sampler.py` – tour of brush & paint behaviour
 * `examples/quickstart.py` – a minimal script
 * `examples/oil_crayon_study.py` – two pears on a cobalt plate, drawn stroke by stroke
+* `examples/little_tern.py` – a tern over a cold sea at dawn: the bird reserved with masking, variegated washes, dry-brush waves (painted by Tern)
 * `examples/moonlit_pond.py` – a cream-crayon moon and its reflection under an indigo wash
 * `examples/watercolor_demo.py` – washes, wet-in-wet, granulation, backruns, salt, lifting
 * `examples/tools_demo.py` – knife, airbrush, splatter, sponge, pens, stencils

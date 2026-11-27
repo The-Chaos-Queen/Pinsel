@@ -22,4 +22,4 @@ from .tools import OilCrayon
 from .pastel import SoftPastel, Charcoal, KneadedEraser
 from .monotype import MonotypePlate
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
