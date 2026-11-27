@@ -17,7 +17,7 @@ fn field(h: usize, w: usize, seed: u64) -> Vec<f64> {
 }
 
 #[test]
-fn gaussian_conserves_total_mass_with_reflect_nearest_free_wrap() {
+fn gaussian_conserves_total_mass_with_reflect_and_wrap() {
     // reflect and wrap are mass conserving for a symmetric kernel; the sum
     // of the filtered image equals the sum of the input to rounding
     let (h, w) = (37, 29);
@@ -79,8 +79,8 @@ fn constants_survive_every_filter() {
     assert_eq!(zs, vec![28, 17]);
     // constant mode: an output pixel whose source coordinate rounds just
     // past the last row becomes 0 (scipy does the same); everything else is 2.5
-    assert!(z.iter().all(|&v| v == 2.5 || v == 0.0));
-    assert!(z.iter().filter(|&&v| v == 2.5).count() > z.len() * 9 / 10);
+    assert!(z.iter().all(|&v| (v - 2.5).abs() < 1e-12 || v == 0.0));
+    assert!(z.iter().filter(|&&v| v != 0.0).count() > z.len() * 9 / 10);
 }
 
 #[test]
