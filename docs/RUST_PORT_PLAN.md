@@ -36,22 +36,33 @@ Pinsel/
 
 The Python package stays the public face. A prebuilt wheel means `pip install` takes seconds: no compiler, no numba, no scipy. numpy stays a dependency because painters pass and get numpy arrays.
 
-## Three stages, each one leaves a working engine
+**Windows from the start (Derek):** Laura's laptop is Windows, and Derek paints there with her anaconda Python. So:
+- the Python package falls back to the numba kernels whenever `pinsel._core` isn't installed, which keeps the old engine importable everywhere until wheels exist;
+- the Windows wheel is built from stage A on, cross-compiled on ML-WS (maturin with cargo-xwin, target `x86_64-pc-windows-msvc`), so the laptop needs no Visual Studio.
+
+## Stage 0, then three stages; each one leaves a working engine
+
+**Stage 0: fix the buffer layout first (Derek).** Otherwise all 62 kernels get ported against full-size arrays and touched again in stage B.
+- Define the canvas storage now: 64×64 tiles, per-array precision, absent tiles. Define one access type that kernels iterate over: a tile view that today wraps the numpy arrays and in stage B is backed by real tiles.
+- Port the first kernel (`paste_stroke`) against that access type, with the Python binding, the fallback and the test harness.
+- Subagents start from this working pattern.
 
 **Stage A: swap the kernels (no behaviour change).**
 - Port the 62 numba kernels (about 3,000 lines: `_kernels.py` 8, `tools.py` 26, `watercolor.py` 10 dual-compiled, `painterly.py` 5, `pastel.py` 3, `spectral.py` 2) to Rust, one by one, behind the same Python call signatures.
 - Replace the scipy calls (`gaussian_filter`, `sobel`, `zoom`, `maximum_filter`, `uniform_filter`, `cKDTree`; FFT for noise) with Rust functions in `_core`.
 - The Python glue stays as it is. After each kernel, all examples still run.
-- End state: no numba and no scipy, so no compile minute. Speed about the same or a bit better. Memory unchanged.
+- Also pull the two cheap memory wins forward (Derek): strip-wise PNG/TIFF output, and no full-size render temporaries.
+- End state: no numba and no scipy, so no compile minute. Speed about the same or a bit better. Memory a little lower.
 
 **Stage B: memory (the main reason for the port).**
 - The canvas state moves into Rust, stored in tiles (64×64).
-- Spectral bands are stored at half precision (f16) where it is safe: the dry stack `below_R` and the watercolor deposits. Wet films stay f32 while they change; check this against the image error budget.
+- **Half precision only when a tile is idle (Derek).** f16 has about three decimal digits, so a thin wash added to a loaded f16 tile can fall below the last place and vanish: twenty glazes would look like three. A tile stays f32 while it is wet or being written, and is packed to f16 only when it goes idle. `below_R` (reflectance 0..1, written once when a layer dries) is f16 at rest. The saving is nearly the same, because most of a big canvas is idle.
 - Allocate lazily: wet-film, base-layer and watercolor tiles exist only where paint or water is. Most of a big canvas is dry or untouched most of the time.
 - Fuse rendering per tile: no full-size temporaries. Write PNG/TIFF in strips.
 - `Canvas` keeps compatible Python properties for the few internals that scripts touch (`stroke_id`, `tooth`, `mask`, `wc.bbox`, `film_vol`, `base_vol`, found by grepping studio, examples and private scripts). Array properties materialize a numpy copy and are documented as the slow path.
 - Built-in checkpoints: save and restore tiles incrementally to disk. Nives had to build this herself.
-- Target: peak memory 3–5× lower. Concretely, the alpine scene under 1 GB, and a 4500×3000 oil canvas inside 7 GB without swap.
+- Copies returned by array properties are read-only, so a script that writes into one fails loudly instead of silently doing nothing (Derek).
+- Target: peak memory 3–5× lower. Alpine under 1 GB. **Acceptance test (Derek): a full-canvas glaze at 4500×3000 under a 7 GB cgroup, no swap.** That's the worst case, because every tile is wet at once, and it is what killed Nives's print. Estimate: film K and S at f32, about 1.3 GB, plus the base layer, plus `below_R` in f16, about 0.3 GB, plus the fused render.
 
 **Stage C: speed.**
 - Move the per-stroke glue into Rust: path resampling, bristle setup, pressure and angle profiles, loading.
@@ -66,8 +77,15 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 ## Verification
 
 - **Reference set** from Python 0.1 on ML-WS: every example's image, run time and peak memory, saved once under `rust/reference/`.
-- **Kernel tests (exact):** a recorder captures real kernel inputs while the examples run (arrays and scalars at each call, sampled). Each Rust kernel must reproduce the numba output on those inputs within float tolerance: relative 1e-4, with `fastmath` reordering allowed. This works because almost all randomness happens in Python before the kernel call. Only `tools._nb_seed` seeds numba's internal RNG; that tool gets an image-level test instead.
-- **Image tests (statistical)** wherever the RNG changes: per-example ΔE2000 distribution and SSIM against the reference; mean ΔE and a high percentile with fixed thresholds per example; and side-by-side images that a human (Laura) looks at.
+- **Whole-image tests in stage A (Derek):** while the Python glue and its RNG are unchanged, the whole image is reproducible with the same seed. So every example is rendered with the old and the new kernels, same seed. Reported: the fraction of pixels with ΔE2000 > 1, and the maximum ΔE. This catches drift over 30,000 strokes that no per-call tolerance can see.
+- **Kernel tests:** a recorder captures real kernel inputs while the examples run (arrays and scalars at each call, sampled), **recorded single-threaded**. Each Rust kernel must reproduce the numba output with `|a − b| ≤ 1e-5 + 1e-4·|b|`: an absolute floor, because relative error means nothing where a result is the difference of two nearly equal sums. Almost all randomness happens in Python before the kernel call. Only `tools._nb_seed` seeds numba's internal RNG; that tool is tested at image level. Also:
+  - kernels with thresholds (wet or not, tooth caught or not, mask on or off) report **flipped pixels as a separate count**, because fastmath can flip a comparison and then the difference isn't small;
+  - every `prange` loop is checked for overlapping in-place writes, because there the numba result already depends on thread timing.
+- **Tests with a right answer (Derek),** because ΔE and SSIM alone would pass an engine that deposits 20% too little or loses granulation:
+  - **conservation:** paint loaded = paint deposited + paint left, per band; water in = water on paper + evaporated; old and new engine, every tool;
+  - **single-mark scenes:** one stroke per tool on a blank ground with a fixed path; compare covered area, mean reflectance per band and the edge profile;
+  - **seed distributions:** for RNG-dependent tools, 20 seeds per engine; compare the spread of those numbers, old against new.
+- **Image tests** once stage C changes the RNG: per-example ΔE2000 distribution and SSIM, plus side-by-side images that Laura looks at. She stays the last check.
 - **Performance table** per stage: on ML-WS and on a constrained box that looks like a cloud machine (4 cores via `taskset`, 7 GB memory cap via a cgroup).
 
 ## Who does what
@@ -78,13 +96,14 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
   - tools part 1 (knife, airbrush, splatter, sponge);
   - tools part 2 (oil crayon, pens, smudge and blender, stencil, stipple);
   - pastel, charcoal and kneaded eraser;
-  - painterly kernels and the palette solver.
-- **Haiku subagents:** the kernel input recorder and comparison harness; the scipy replacements (filters, zoom, KD-tree); pigment and path tables; test scaffolding.
-- Subagents start only after the skeleton, the canvas buffer layout and the first ported kernel exist, so they copy a working pattern instead of inventing one each.
+  - painterly kernels and the palette solver;
+  - **the scipy replacements (Derek):** `gaussian_filter` (boundary modes, truncation), `zoom` (spline order, prefilter) and `sobel` have exact conventions, and a quiet mismatch shifts every picture. Established crates for FFT and the KD-tree; Sonnet ports the filters with scipy parity tests on awkward sizes.
+- **Haiku subagents:** the kernel input recorder, the comparison harness and test scaffolding only.
+- Subagents start only after stage 0, so they copy a working pattern instead of inventing one each.
 
 ## Build and distribution
 
-- Rust (rustup, user-level) and maturin on ML-WS. Linux x86_64 manylinux wheels match the cloud sandboxes. A Windows wheel for Laura's laptop comes later.
+- Rust (rustup, user-level) and maturin on ML-WS. Linux x86_64 manylinux wheels match the cloud sandboxes. The Windows wheel is cross-built there from stage A on (see above).
 - Source of truth is GitHub. ML-WS gets the source by `git push` over SSH to a bare repo there, so no GitHub token is placed on ML-WS.
 - **Open question for Laura:** how do the painters get Pinsel today? The repo is private, so a cloud sandbox can't download a release wheel without a token. Options: make the repo public; or serve the wheels from hurtig.ai as a tiny static pip index (`pip install --index-url https://hurtig.ai/pinsel/simple pinsel`); or keep handing them the files as now.
 
@@ -97,4 +116,14 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 
 ## Rough time (agent time)
 
-Stage A about 2–3 days; stage B about 2 days; stage C about 1–2 days; features after that.
+Stage 0 about half a day; stage A about 2–3 days; stage B about 2 days; stage C about 1–2 days; features after that.
+
+## Changes after Derek's review (2026-11-27, one round, `RUST_PORT_REVIEW_DEREK.md`: "GO with changes")
+
+1. Stage 0 fixes the tile layout and the kernel access type before any kernel is ported, so kernels are written once. Strip-wise output and fused render move into stage A.
+2. Stage A gets whole-image same-seed tests (fraction of pixels with ΔE > 1, max), an absolute floor on kernel tolerances, single-threaded recording, threshold flips counted separately, and a `prange` overlap check.
+3. f16 only for idle tiles (pack on idle), never for accumulating; the acceptance test is a full-canvas glaze at 4500×3000 under 7 GB, no swap.
+4. Conservation tests, single-mark scenes per tool, and 20-seed distributions, because ΔE and SSIM alone would pass a wrong engine.
+5. scipy replacements go to crates and Sonnet with parity tests, not Haiku. The Windows wheel comes from stage A on, with a numba fallback until then. Array-property copies are read-only.
+
+Derek would like the oil crayon to survive the journey. It's on the single-mark list.
