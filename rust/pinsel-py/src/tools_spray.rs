@@ -146,18 +146,18 @@ fn tools_sponge_dab(
     x0: i64,
     y0: i64,
     tooth: PyReadonlyArrayDyn<'_, f32>,
-    mut w_k: PyReadwriteArrayDyn<'_, f32>,
-    mut w_s: PyReadwriteArrayDyn<'_, f32>,
-    mut wwat: PyReadwriteArrayDyn<'_, f32>,
-    mut wm: PyReadwriteArrayDyn<'_, f32>,
-    mut wg: PyReadwriteArrayDyn<'_, f32>,
-    mut wst: PyReadwriteArrayDyn<'_, f32>,
-    mut d_k: PyReadwriteArrayDyn<'_, f32>,
-    mut d_s: PyReadwriteArrayDyn<'_, f32>,
-    mut dm: PyReadwriteArrayDyn<'_, f32>,
-    mut dg: PyReadwriteArrayDyn<'_, f32>,
-    mut dst: PyReadwriteArrayDyn<'_, f32>,
-    mut wdamp: PyReadwriteArrayDyn<'_, f32>,
+    w_k: &Bound<'_, PyAny>,
+    w_s: &Bound<'_, PyAny>,
+    wwat: &Bound<'_, PyAny>,
+    wm: &Bound<'_, PyAny>,
+    wg: &Bound<'_, PyAny>,
+    wst: &Bound<'_, PyAny>,
+    d_k: &Bound<'_, PyAny>,
+    d_s: &Bound<'_, PyAny>,
+    dm: &Bound<'_, PyAny>,
+    dg: &Bound<'_, PyAny>,
+    dst: &Bound<'_, PyAny>,
+    wdamp: &Bound<'_, PyAny>,
 ) -> PyResult<(i64, i64, i64, i64)> {
     let (t_h, t_w) = hw(&tex, "tex")?;
     if t_h < 2 || t_w < 2 || t_h != t_w {
@@ -171,23 +171,28 @@ fn tools_sponge_dab(
     let mask_s = ro_c(&mask, "mask")?;
     let (th, tw) = hw(&tooth, "tooth")?;
     let tooth_s = ro_c(&tooth, "tooth")?;
-    // the water layer (real arrays, or 1 x 1 dummies when the paint is not fluid)
-    let (wh, ww) = hw_mut(&wwat, "water")?;
-    let (dh, dw) = hw_mut(&wdamp, "damp")?;
-    let mut wc = WcLayer {
-        k: SpecMut::new(wh, ww, NB, rw(&mut w_k, "wK")?),
-        s: SpecMut::new(wh, ww, NB, rw(&mut w_s, "wS")?),
-        water: PlaneMut::new(wh, ww, rw(&mut wwat, "water")?),
-        m: PlaneMut::new(wh, ww, rw(&mut wm, "wm")?),
-        g: PlaneMut::new(wh, ww, rw(&mut wg, "wg")?),
-        st: PlaneMut::new(wh, ww, rw(&mut wst, "wst")?),
-        dk: SpecMut::new(wh, ww, NB, rw(&mut d_k, "dK")?),
-        ds: SpecMut::new(wh, ww, NB, rw(&mut d_s, "dS")?),
-        dm: PlaneMut::new(wh, ww, rw(&mut dm, "dm")?),
-        dg: PlaneMut::new(wh, ww, rw(&mut dg, "dg")?),
-        dst: PlaneMut::new(wh, ww, rw(&mut dst, "dst")?),
-    };
-    let mut damp = PlaneMut::new(dh, dw, rw(&mut wdamp, "damp")?);
+    // The water layer: real canvas arrays when fluid; otherwise Python passes the
+    // same 1 x 1 dummy for several of them (aliased, never touched), which cannot be
+    // borrowed mutably together, so they are ignored and local dummies stand in.
+    let mut fl: Vec<PyReadwriteArrayDyn<'_, f32>> = Vec::new();
+    if fluid {
+        for (a, n) in [
+            (w_k, "wK"),
+            (w_s, "wS"),
+            (wwat, "water"),
+            (wm, "wm"),
+            (wg, "wg"),
+            (wst, "wst"),
+            (d_k, "dK"),
+            (d_s, "dS"),
+            (dm, "dm"),
+            (dg, "dg"),
+            (dst, "dst"),
+            (wdamp, "damp"),
+        ] {
+            fl.push(a.extract().map_err(|_| PyValueError::new_err(format!("pinsel_core: {n} must be a float32 array")))?);
+        }
+    }
     let p = ts::SpongeParams {
         cx,
         cy,
@@ -218,18 +223,72 @@ fn tools_sponge_dab(
     }
     // the film mask is never read here (the region mask comes in as `mask`); tooth stands in
     let mut cv = DenseWet::new(h, w, arrays, &tooth_s, &tooth_s);
-    Ok(ts::sponge_dab(
-        &p,
-        &Plane::new(t_h, t_w, &tex_s),
-        rw(&mut r_k, "rK")?,
-        rw(&mut r_s, "rS")?,
-        rw(&mut r_v, "rV")?,
-        &mut cv,
-        &Plane::new(mh, mw, &mask_s),
-        &Plane::new(th, tw, &tooth_s),
-        &mut wc,
-        &mut damp,
-    ))
+    let tex_p = Plane::new(t_h, t_w, &tex_s);
+    let mask_p = Plane::new(mh, mw, &mask_s);
+    let tooth_p = Plane::new(th, tw, &tooth_s);
+    let (rk_s, rs_s, rv_s) = (rw(&mut r_k, "rK")?, rw(&mut r_s, "rS")?, rw(&mut r_v, "rV")?);
+    if fluid {
+        let mut it = fl.iter_mut();
+        let mut next = || it.next().unwrap();
+        let (a_k, a_s, a_w, a_m, a_g, a_st, a_dk, a_ds, a_dm, a_dg, a_dst, a_damp) = (
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+            next(),
+        );
+        let (wh, ww) = hw_mut(a_w, "water")?;
+        let (dh, dw) = hw_mut(a_damp, "damp")?;
+        let mut wc = WcLayer {
+            k: SpecMut::new(wh, ww, NB, rw(a_k, "wK")?),
+            s: SpecMut::new(wh, ww, NB, rw(a_s, "wS")?),
+            water: PlaneMut::new(wh, ww, rw(a_w, "water")?),
+            m: PlaneMut::new(wh, ww, rw(a_m, "wm")?),
+            g: PlaneMut::new(wh, ww, rw(a_g, "wg")?),
+            st: PlaneMut::new(wh, ww, rw(a_st, "wst")?),
+            dk: SpecMut::new(wh, ww, NB, rw(a_dk, "dK")?),
+            ds: SpecMut::new(wh, ww, NB, rw(a_ds, "dS")?),
+            dm: PlaneMut::new(wh, ww, rw(a_dm, "dm")?),
+            dg: PlaneMut::new(wh, ww, rw(a_dg, "dg")?),
+            dst: PlaneMut::new(wh, ww, rw(a_dst, "dst")?),
+        };
+        let mut damp = PlaneMut::new(dh, dw, rw(a_damp, "damp")?);
+        Ok(ts::sponge_dab(&p, &tex_p, rk_s, rs_s, rv_s, &mut cv, &mask_p, &tooth_p, &mut wc, &mut damp))
+    } else {
+        let mut d3: Vec<Vec<f32>> = vec![vec![0.0; NB]; 4];
+        let mut d2: Vec<Vec<f32>> = vec![vec![0.0; 1]; 9];
+        let (d3a, d3b) = d3.split_at_mut(2);
+        let (d2a, d2b) = d2.split_at_mut(4);
+        let (d2b, d2c) = d2b.split_at_mut(2);
+        let mut i3a = d3a.iter_mut();
+        let mut i3b = d3b.iter_mut();
+        let mut i2a = d2a.iter_mut();
+        let mut i2b = d2b.iter_mut();
+        let mut i2c = d2c.iter_mut();
+        let mut wc = WcLayer {
+            k: SpecMut::new(1, 1, NB, i3a.next().unwrap()),
+            s: SpecMut::new(1, 1, NB, i3a.next().unwrap()),
+            water: PlaneMut::new(1, 1, i2a.next().unwrap()),
+            m: PlaneMut::new(1, 1, i2a.next().unwrap()),
+            g: PlaneMut::new(1, 1, i2a.next().unwrap()),
+            st: PlaneMut::new(1, 1, i2a.next().unwrap()),
+            dk: SpecMut::new(1, 1, NB, i3b.next().unwrap()),
+            ds: SpecMut::new(1, 1, NB, i3b.next().unwrap()),
+            dm: PlaneMut::new(1, 1, i2b.next().unwrap()),
+            dg: PlaneMut::new(1, 1, i2b.next().unwrap()),
+            dst: PlaneMut::new(1, 1, i2c.next().unwrap()),
+        };
+        let mut damp_v = vec![0.0f32; 1];
+        let mut damp = PlaneMut::new(1, 1, &mut damp_v);
+        Ok(ts::sponge_dab(&p, &tex_p, rk_s, rs_s, rv_s, &mut cv, &mask_p, &tooth_p, &mut wc, &mut damp))
+    }
 }
 
 /// `_pen_raster(px, py, rad, ink, skip, gap, fill, kind, nca, nsa, nib_hw, nib_ht,
