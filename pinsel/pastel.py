@@ -189,6 +189,16 @@ def _eraser_stroke(px, py, pp, r_base, strength, film_K, film_S, film_vol,
     return bx0, by0, bx1, by1
 
 
+from . import _backend as _B  # noqa: E402  (Rust port of the kernels above)
+_pastel_stroke = _B.port('pastel_pastel_stroke', _pastel_stroke, mutable={
+    11: 'film_K', 12: 'film_S', 13: 'film_vol', 14: 'wet', 15: 'gloss', 16: 'body', 17: 'drate',
+    20: 'base_K', 21: 'base_S', 22: 'base_vol', 23: 'top_id'},
+    region_args=(13, 11, 12, 14, 15, 16, 17, 20, 21, 22, 23))   # film_vol first (gives H, W)
+_eraser_stroke = _B.port('pastel_eraser_stroke', _eraser_stroke, mutable={
+    5: 'film_K', 6: 'film_S', 7: 'film_vol', 8: 'base_K', 9: 'base_S', 10: 'base_vol'},
+    region_args=(7, 5, 6, 8, 9, 10))
+
+
 class SoftPastel:
     """Chalky soft pastel stick.
 
