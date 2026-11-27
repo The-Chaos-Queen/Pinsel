@@ -57,6 +57,7 @@ from scipy import ndimage
 
 from .path import resample, arclength, wobble as _wobble
 from .pigments import Paint
+from . import _backend as _B
 from .spectral import NB
 
 __all__ = ['PaletteKnife', 'Airbrush', 'Splatter', 'Sponge', 'OilCrayon', 'Pen', 'Smudge', 'Blender',
@@ -450,6 +451,12 @@ def _apply_fluid_map(vol, ox, oy, water_ratio, settle_frac, Kpv, Spv, gran, stai
             ms = m * settle_frac
             _wc_settle_add(dK, dS, dm, dg, dst, Y, X, ms, Kpv, Spv, gran, stain)
             _wc_add(wK, wS, wwat, wm, wg, wst, Y, X, m * water_ratio, m - ms, Kpv, Spv, gran, stain)
+
+
+_apply_volume_map = _B.port('tools_apply_volume_map', _apply_volume_map, mutable={8: 'F'})
+_apply_fluid_map = _B.port('tools_apply_fluid_map', _apply_fluid_map, mutable={
+    9: 'wK', 10: 'wS', 11: 'wwat', 12: 'wm', 13: 'wg', 14: 'wst', 15: 'dK', 16: 'dS', 17: 'dm',
+    18: 'dg', 19: 'dst'})
 
 
 def _deposit_map(canvas, vol, ox, oy, paint_K, paint_S, props, body_scale=1.0,
@@ -902,6 +909,10 @@ def _knife_kernel(px, py, pp, pa, ps, mode, half, nk, res_K, res_S, res_vol, cap
     return bb[0], bb[1], bb[2], bb[3]
 
 
+_knife_kernel = _B.port('tools_knife_kernel', _knife_kernel, mutable={
+    8: 'res_K', 9: 'res_S', 10: 'res_vol', 20: 'F'})
+
+
 @njit(cache=True, fastmath=True)
 def _sgraffito_kernel(px, py, pp, r0, r1, valley, burr, carry, ragged, noise, nox, noy,
                       F, sid, h_ground, h_dry, mask):
@@ -1076,6 +1087,9 @@ def _sgraffito_kernel(px, py, pp, r0, r1, valley, burr, carry, ragged, noise, no
                 dv = cv * math.exp(-((X - cx) ** 2 + (Y - cy) ** 2) / 2.0) / wsum * (1.0 - mask[Y, X])
                 _dep(F, sid, Y, X, dv, kK, kS, cg, cb, cd)
     return bb[0], bb[1], bb[2], bb[3]
+
+
+_sgraffito_kernel = _B.port('tools_sgraffito_kernel', _sgraffito_kernel, mutable={12: 'F'})
 
 
 class PaletteKnife:
@@ -2697,6 +2711,10 @@ def _smudge_kernel(px, py, pp, R, rate, spread, F, sid, mask, lK, lS, lV, lP):
     return bb[0], bb[1], bb[2], bb[3]
 
 
+_smudge_kernel = _B.port('tools_smudge_kernel', _smudge_kernel, mutable={
+    6: 'F', 9: 'lK', 10: 'lS', 11: 'lV', 12: 'lP'})
+
+
 class Smudge:
     """Finger / rag / tortillon smudging of wet paste paint (no paint added).
 
@@ -2790,6 +2808,9 @@ def _crayon_stroke(film, sid, tooth, relief, mask, wax, xy, pressures, angles,
                     left, top = min(left, x), min(top, y)
                     right, bottom = max(right, x), max(bottom, y)
     return left, top, right, bottom
+
+
+_crayon_stroke = _B.port('tools_crayon_stroke', _crayon_stroke, mutable={0: 'film', 5: 'wax'})
 
 
 class OilCrayon:
