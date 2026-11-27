@@ -59,6 +59,7 @@ from numba import njit, prange
 
 from .spectral import NB
 from . import noise as _nz
+from . import _backend as _B
 
 __all__ = ['simulate', 'settle', 'wet_paper', 'wash', 'variegated_wash', 'drop',
            'spritz', 'spatter', 'salt', 'blot', 'lift', 'tilt', 'hair_dryer',
@@ -972,6 +973,29 @@ def _k_settle_all(K, S, m, g, st, dK, dS, dm, dg, dst, h, s):
                     S[y, x, b] = 0.0
             h[y, x] = 0.0
             s[y, x] = 0.0
+
+
+# Rust ports (docs/RUST_PORT_PLAN.md): the same kernels, bit-identical to the
+# numba ones compiled without fastmath. ``mutable`` lists the argument
+# positions each kernel writes. Without the pinsel_core wheel these stay numba.
+_k_fibres = _B.port('wc_k_fibres', _k_fibres, mutable={8: 'cx', 9: 'cy', 10: 'cov'})
+_k_flow1 = _B.port('wc_k_flow1', _k_flow1, mutable={
+    8: 'u', 9: 'v', 10: 'ur', 11: 'vr', 12: 'r', 19: 'rowtile'})
+_k_flow2 = _B.port('wc_k_flow2', _k_flow2, mutable={0: 'h', 1: 'u', 2: 'v', 6: 'ax', 7: 'ay'})
+_k_outflow = _B.port('wc_k_outflow', _k_outflow, mutable={3: 'den'})
+_k_xpass = _B.port('wc_k_xpass', _k_xpass, mutable={
+    2: 'K', 3: 'S', 4: 'm', 5: 'g', 6: 'st', 7: 'ax'})
+_k_ypass = _B.port('wc_k_ypass', _k_ypass, mutable={
+    2: 'K', 3: 'S', 4: 'm', 5: 'g', 6: 'st', 7: 'ay'})
+_k_edge = _B.port('wc_k_edge', _k_edge, mutable={4: 'tmp', 5: 'E'})
+_k_local = _B.port('wc_k_local', _k_local, mutable={
+    0: 'h', 2: 's2', 3: 'K', 4: 'S', 5: 'm', 6: 'g', 7: 'st', 8: 'dK', 9: 'dS',
+    10: 'dm', 11: 'dg', 12: 'dst', 13: 'bond'})
+_k_salt = _B.port('wc_k_salt', _k_salt, mutable={1: 's2'})
+_k_active = _B.port('wc_k_active', _k_active, mutable={3: 'rowx0', 4: 'rowx1'})
+_k_settle_all = _B.port('wc_k_settle_all', _k_settle_all, mutable={
+    0: 'K', 1: 'S', 2: 'm', 3: 'g', 4: 'st', 5: 'dK', 6: 'dS', 7: 'dm', 8: 'dg',
+    9: 'dst', 10: 'h', 11: 's'})
 
 
 # ==========================================================================
