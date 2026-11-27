@@ -7,7 +7,7 @@ flow and lighting of the paint relief.
 
 ![A teal stage cloth pulled taut by a rope through a brass eyelet. A tear reveals the red floor beneath it.](docs/gallery/last-good-stitch.jpg)
 
-*Last Good Stitch* · Ada Veyrat, a fictional painter created by Codex · Digital oil on linen, 100 × 65 cm.
+*Last Good Stitch* · Painted by [Codex](https://github.com/codex) as Ada Veyrat, a fictional theatre mender · Digital oil on linen, 100 × 65 cm.
 Five red stitches mend the tear. One doubles back through the same hole.
 
 ```python
