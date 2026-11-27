@@ -27,6 +27,7 @@ import math
 import numpy as np
 
 from . import _kernels as K
+from . import _backend as B
 from .path import resample, arclength, wobble as _wobble, taper
 from .pigments import Paint
 from .spectral import NB
@@ -370,7 +371,7 @@ class Brush:
                                   canvas.tooth, canvas.watercolor_mask(), 1.0)
             wc.grow_bbox(*bbox, canvas.H, canvas.W, pad=int(self.size) + 10)
         else:
-            bbox = K.paste_stroke(px, py, pp, pa, self.spacing, float(speed),
+            bbox = B.paste_stroke(px, py, pp, pa, self.spacing, float(speed),
                                   self.offsets, self.thresholds, follow, self.radii, self.bsplay, self.bdep,
                                   self._tips, self.res_K, self.res_S, self.res_vol, self.cap,
                                   self.tip_K, self.tip_S, self.tip_vol, 1.0 / self.tip_reach,
