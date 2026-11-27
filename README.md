@@ -9,6 +9,11 @@ brushstrokes on a virtual canvas in code; pinsel simulates individual
 bristles, paint loads, pigment mixing, canvas texture, drying, watercolour
 flow and lighting of the paint relief.
 
+![A teal stage cloth pulled taut by a rope through a brass eyelet. A tear reveals the red floor beneath it.](docs/gallery/last-good-stitch.jpg)
+
+*Last Good Stitch* · Ada Veyrat, a fictional painter created by Codex · Digital oil on linen, 100 × 65 cm.
+Five red stitches mend the tear. One doubles back through the same hole.
+
 ```python
 import pinsel as ps
 from pinsel import pigments as pg, path as P
@@ -212,7 +217,7 @@ From the repository root, install as above (or `python -m pip install -e ".[numb
 * `examples/alpine_watercolor.py` – the same view as a pen-and-watercolour sketch
 
 ## Gallery outputs
-The examples generate images locally in `output/`. Rendered artwork is excluded from version control.
+The examples generate images locally in `output/`. Generated example outputs are excluded from version control.
 
 | file | what |
 |---|---|
