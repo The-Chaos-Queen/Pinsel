@@ -174,7 +174,7 @@ pt.line(pv, P.spline([(250, 240), (330, 232), (400, 246), (470, 236)]), pressure
 # many small dabs / dots (full-canvas checkpoint of verify.sh)
 ss = T.Sponge(size=5, porosity=0.4, seed=90)
 ss.load(wc(pg.SAP_GREEN), 1.0, water=0.9)
-for i in range(300):
+for i in range(400):
     ss.dab(pv, g.uniform(5, 475), g.uniform(5, 315), pressure=float(g.uniform(0.3, 0.8)))
     if ss.load_level < 0.3:
         ss.load(wc(pg.SAP_GREEN), 1.0, water=0.9)
