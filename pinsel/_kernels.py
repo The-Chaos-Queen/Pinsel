@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 import numpy as np
-from numba import njit, prange
+from ._jit import njit, prange
 
 from .spectral import km_over, NB
 

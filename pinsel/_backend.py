@@ -1,7 +1,8 @@
 """Kernel backend for the Rust port (see docs/RUST_PORT_PLAN.md).
 
 The Rust kernels live in the optional package ``pinsel_core``. When it is
-installed pinsel uses it, otherwise the numba kernels in ``_kernels``, so
+installed pinsel uses it, otherwise the numba kernels in ``_kernels`` (plain
+Python if numba is missing too, see ``_jit``), so
 pinsel keeps working on machines without the wheel.
 
 Environment:
@@ -32,12 +33,22 @@ try:
 except ImportError:  # no wheel on this machine
     _rs = None
 
+from ._jit import HAVE_NUMBA
+
 _choice = os.environ.get('PINSEL_BACKEND', '').strip().lower()
 if _choice == 'rust' and _rs is None:
     raise ImportError('PINSEL_BACKEND=rust, but pinsel_core is not installed')
+if _choice == 'numba' and not HAVE_NUMBA:
+    raise ImportError('PINSEL_BACKEND=numba, but numba is not installed')
 USE_RUST = _rs is not None and _choice != 'numba'
-NAME = 'rust' if USE_RUST else 'numba'
+NAME = 'rust' if USE_RUST else ('numba' if HAVE_NUMBA else 'python')
+if _rs is None and not HAVE_NUMBA:
+    import warnings
+    warnings.warn('pinsel: neither pinsel_core (Rust) nor numba is installed, so the kernels run as '
+                  'plain Python and painting will be very slow', RuntimeWarning, stacklevel=2)
 AB_EVERY = int(os.environ.get('PINSEL_AB', '0') or 0)
+if AB_EVERY and not HAVE_NUMBA:
+    raise ImportError('PINSEL_AB compares Rust with numba, but numba is not installed')
 AB_LOG = os.environ.get('PINSEL_AB_LOG', '')
 
 # Absolute floor + relative tolerance (Derek): |a - b| <= ATOL + RTOL * |b|

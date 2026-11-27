@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import math
 import numpy as np
-from numba import njit
+from ._jit import njit
 from . import _filters as ndimage
 
 from .path import resample, arclength, wobble as _wobble

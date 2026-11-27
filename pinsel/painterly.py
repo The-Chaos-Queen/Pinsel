@@ -50,7 +50,7 @@ from dataclasses import dataclass, field, fields, replace
 from typing import Optional
 
 import numpy as np
-from numba import njit
+from ._jit import njit
 from . import _filters as ndimage
 from ._filters import KDTree as cKDTree
 

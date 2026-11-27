@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import numpy as np
-from numba import njit
+from ._jit import njit
 
 from . import pigments as pg
 from .path import arclength, resample, taper, wobble as _wobble

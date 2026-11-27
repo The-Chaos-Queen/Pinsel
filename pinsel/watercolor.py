@@ -55,7 +55,7 @@ import math
 import time as _time
 import types
 import numpy as np
-from numba import njit, prange
+from ._jit import njit, prange
 
 from .spectral import NB
 from . import noise as _nz
@@ -300,8 +300,8 @@ _SERIAL_BELOW = 90_000      # cells: always serial below this
 
 def _pick_mode(cells):
     """Choose parallel / serial kernels from measured cost per cell."""
-    import numba
-    if cells < _SERIAL_BELOW or numba.get_num_threads() <= 1:
+    from ._jit import get_num_threads
+    if cells < _SERIAL_BELOW or get_num_threads() <= 1:
         return 1
     p, s = _TUNE['par'], _TUNE['ser']
     _TUNE['n'] += 1
