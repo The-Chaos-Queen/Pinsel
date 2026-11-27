@@ -21,31 +21,50 @@ Every N-th stroke runs through both kernels on copies of the same inputs. The pa
 
 Tolerance: `|a − b| ≤ 1e-5 + 1e-4·|b|` (Derek). The brush differences are float reordering: numba compiles with `fastmath`.
 
-## 3. Whole-image same-seed test: the engine is chaotic
+## 3. Whole-image same-seed test
+
+**Correction (same day, 12:55).** My first reading here was "the engine is chaotic": numba vs Rust differed in 0.3% of the alpine pixels (max ΔE 55), and so did numba with fastmath ON vs OFF. That was wrong. Derek asked for the index of the first stroke at which two runs differ. The trace (`PINSEL_TRACE`, `first_divergence.py`) showed that **even Rust vs Rust and numba vs numba differed between runs**: quickstart from stroke 1, alpine from stroke 26,901. The cause was a bug in the Python engine, not the port. `Canvas.tone`, `Brush.stroke` (wobble, pressure jitter), `SoftPastel.stroke`, `Smudge.stroke`, `glaze`, `Stencil.tape`/`masking_fluid` and `stipple` used fresh OS entropy when called without a seed, instead of the canvas's, brush's or tool's own seeded stream. So the same seeded script never painted the same picture twice. Fixed in commit "reproducibility fix" on this branch. The first table below is from before the fix; the numbers in it measure that randomness, not the port.
+
+Before the reproducibility fix (superseded):
 
 | Image | Comparison | Identical pixels | ΔE2000 > 1 | max ΔE |
 |---|---|---:|---:|---:|
-| quickstart | numba vs **Rust** | 96.55% | 0.021% | 7.1 |
-| quickstart | numba fastmath ON vs numba fastmath OFF | 96.53% | 0.015% | 3.6 |
-| alpine_lake | numba vs **Rust** | 99.47% | 0.329% | 55.3 |
-| alpine_lake | numba fastmath ON vs numba fastmath OFF | 99.48% | 0.317% | 55.8 |
-| alpine_lake | numba fastmath OFF vs **Rust** | 99.46% | – | 53.3 |
+| quickstart | numba vs Rust | 96.55% | 0.021% | 7.1 |
+| alpine_lake | numba vs Rust | 99.47% | 0.329% | 55.3 |
+| alpine_lake | numba fastmath ON vs OFF | 99.48% | 0.317% | 55.8 |
+
+**After the fix: first divergence per stroke** (canvas region touched by each stroke; full-canvas hash every 1,000 strokes):
+
+| Comparison | quickstart (1,050 strokes) | alpine (30,763 strokes) |
+|---|---|---|
+| numba, 1 thread vs many | identical | identical |
+| Rust run 1 vs run 2 | identical | identical |
+| **numba fastmath OFF vs Rust** | **identical (every stroke, every checkpoint)** | **identical (every stroke, every checkpoint)** |
+| numba fastmath ON vs Rust | first at stroke 13; 11 strokes differ | first at stroke 1; 42 strokes differ |
+| numba fastmath ON vs OFF | first at stroke 13; 11 strokes differ | first at stroke 1; 42 strokes differ |
+
+**After the fix: final images**
+
+| Image | Comparison | Result |
+|---|---|---|
+| quickstart.png, alpine_lake.png | numba fastmath OFF vs Rust | **byte-identical files** (same MD5) |
+| quickstart.png, alpine_lake.png, alpine_lake_raking.png | numba (fastmath ON, the default) vs Rust | **100.0000% identical pixels**, max ΔE 0.00 |
 
 Reading:
-- A 1e-10 difference in a bristle's reservoir carries from stroke to stroke until a threshold tips somewhere (a bristle touches or not, `room > 0`, contact). From there a streak runs differently, and the canvas state it leaves changes later pickups. Over 30,000 strokes that gives a few local differences, 0.3% of the pixels, each up to ΔE ≈ 55 (a streak in another place).
-- **The old engine does exactly the same to itself.** Switching only numba's `fastmath` flag produces the same amount of difference as switching to Rust. Not even numba with fastmath off matches numba with fastmath on, or Rust.
-- So the whole-image test can't be bit-exact for this engine, whatever the port. Derek's premise ("the whole image is reproducible with the same seed") holds only for one fixed compiler and flags.
+- **The Rust kernel computes exactly what the numba kernel computes without fastmath**, over the whole painting.
+- The only remaining difference is numba's fastmath rounding. It flips a threshold in 11 of 1,050 and 42 of 30,763 strokes; the same strokes, at the same first index, as numba against itself with fastmath switched. Those differences stay below 8-bit quantization: the delivered PNGs are pixel-identical.
+- Derek's criteria: (a) first divergence of Rust vs numba = first divergence of numba ON vs OFF (stroke 13 and stroke 1); (b) the canvas is bit-identical up to there. Both hold. The floor over three numba variants (fastmath on/off, 1 vs many threads) is: threads 0, fastmath 11/42 strokes.
 
-**Adjusted criterion for stage A:** for every example, the Rust-vs-numba difference must be no larger than numba's own fastmath ON-vs-OFF difference (identical-pixel fraction, ΔE > 1 fraction, max ΔE). That's the engine's float-noise floor. On top of that, the per-stroke A/B must stay bit-identical or within tolerance on the canvas, with flipped thresholds counted separately. Single-mark, conservation and seed-distribution tests come as planned.
+**Criterion for stage A (replaces the noise-floor criterion of the first reading):** every ported kernel must be **bit-identical to its numba kernel compiled without fastmath**, over the whole example (trace and PNG checksum). Against default numba, the first-divergence index and the number of differing strokes must equal numba's own fastmath ON-vs-OFF numbers. Per-stroke A/B, single-mark, conservation and seed-distribution tests come as planned.
 
 ## 4. Speed (not a stage 0 goal)
 
 | Example | numba | Rust |
 |---|---:|---:|
 | quickstart | 7.1 s | 8.5 s |
-| alpine_painting | 91.2 s | 92.9 s |
+| alpine_painting | 85.7 s | 93.3 s (rerun after the fix) |
 
-No speedup yet, as expected: the numba kernel was already compiled, and the run time is dominated by the glue and the other kernels. The wheel removes the compile minute on fresh machines (not visible here, warm cache). Speed comes in stage C.
+No speedup yet, and the Rust kernel is even about 9% slower on alpine. Likely causes, to check in stage C: numba's fastmath vectorizes the 12-band loops and Rust's exact arithmetic doesn't; and each call extracts 33 numpy arrays through PyO3 with borrow checks. Speed isn't a stage 0 or A goal; memory (B) and speed (C) are. The wheel removes the compile minute on fresh machines (not visible here, warm cache). Speed comes in stage C.
 
 ## Files
 

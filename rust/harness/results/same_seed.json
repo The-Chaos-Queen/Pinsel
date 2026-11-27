@@ -1,34 +1,34 @@
 {
  "quickstart": {
-  "seconds_numba": 7.08,
-  "seconds_rust": 8.49,
+  "seconds_numba": 7.06,
+  "seconds_rust": 8.51,
   "images": {
    "quickstart.png": {
     "pixels": 540000,
-    "identical": 0.9654555555555555,
-    "frac_dE_gt_1": 0.00021296296296296298,
-    "p99_dE": 0.36976557464319726,
-    "max_dE": 7.065998612745795
+    "identical": 1.0,
+    "frac_dE_gt_1": 0.0,
+    "p99_dE": 0.0,
+    "max_dE": 0.0
    }
   }
  },
  "alpine_painting": {
-  "seconds_numba": 91.24,
-  "seconds_rust": 92.88,
+  "seconds_numba": 85.74,
+  "seconds_rust": 93.29,
   "images": {
    "alpine_lake.png": {
     "pixels": 1760000,
-    "identical": 0.9947011363636363,
-    "frac_dE_gt_1": 0.003290340909090909,
+    "identical": 1.0,
+    "frac_dE_gt_1": 0.0,
     "p99_dE": 0.0,
-    "max_dE": 55.26890521750596
+    "max_dE": 0.0
    },
    "alpine_lake_raking.png": {
     "pixels": 1760000,
-    "identical": 0.9945113636363636,
-    "frac_dE_gt_1": 0.003535227272727273,
+    "identical": 1.0,
+    "frac_dE_gt_1": 0.0,
     "p99_dE": 0.0,
-    "max_dE": 56.111352401105094
+    "max_dE": 0.0
    }
   }
  }
