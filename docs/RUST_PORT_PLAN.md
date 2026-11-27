@@ -51,7 +51,7 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 - Port the first kernel (`paste_stroke`) against that access type, with the Python binding, the fallback and the test harness.
 - Subagents start from this working pattern.
 
-**Stage A: swap the kernels (no behaviour change).**
+**Stage A: swap the kernels (no behaviour change).** Done 2026-11-27: bit-identical over 15 scripts, Windows wheel, no numba/scipy needed, strip-wise output; see `rust/harness/STAGEA_RESULTS.md` (also the stage B baseline: oil 4.33 GB, watercolour 7.94 GB at 4500 x 3000).
 - Port the 62 numba kernels (about 3,000 lines: `_kernels.py` 8, `tools.py` 26, `watercolor.py` 10 dual-compiled, `painterly.py` 5, `pastel.py` 3, `spectral.py` 2) to Rust, one by one, behind the same Python call signatures.
 - Replace the scipy calls (`gaussian_filter`, `sobel`, `zoom`, `maximum_filter`, `uniform_filter`, `cKDTree`; FFT for noise) with Rust functions in `pinsel_core`.
 - The Python glue stays as it is. After each kernel, all examples still run.
