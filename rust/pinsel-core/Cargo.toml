@@ -1,0 +1,8 @@
+[package]
+name = "pinsel-core"
+description = "Pure-Rust core of the pinsel painting engine (kernels and canvas storage)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

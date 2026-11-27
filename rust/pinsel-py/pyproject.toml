@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "pinsel-core"
+version = "0.1.0"
+description = "Rust kernels for the pinsel painting engine. Optional: pinsel uses them when installed."
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26"]
+
+[tool.maturin]
+module-name = "pinsel_core"
+features = ["pyo3/extension-module"]

@@ -1,0 +1,15 @@
+[package]
+name = "pinsel-py"
+description = "Python bindings (module pinsel_core) for the pinsel Rust core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "pinsel_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pcore = { package = "pinsel-core", path = "../pinsel-core" }
+pyo3 = { version = "0.30", features = ["abi3-py310"] }
+numpy = "0.30"
