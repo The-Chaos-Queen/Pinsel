@@ -1322,7 +1322,7 @@ def region_mask(canvas, region, soft=0.0, rough=0.0, respect_mask=True):
         ms = _nz.blur(m, 2.0)
         thr = 0.5 - rough * 0.3 * p.edge_noise
         hard = ms > thr
-        from scipy import ndimage as _ndi
+        from . import _filters as _ndi
         hard = _ndi.binary_opening(hard, iterations=1) | (ms > 0.97)
         hard = _ndi.binary_closing(hard, iterations=1)
         m = np.where(hard, np.clip((ms - thr) * 2.5 + 0.75, 0.5, 1.0), 0.0)

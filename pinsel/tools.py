@@ -53,7 +53,7 @@ from __future__ import annotations
 import math
 import numpy as np
 from numba import njit
-from scipy import ndimage
+from . import _filters as ndimage
 
 from .path import resample, arclength, wobble as _wobble
 from .pigments import Paint

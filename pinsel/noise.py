@@ -1,9 +1,10 @@
-"""Procedural noise helpers (numpy / scipy)."""
+"""Procedural noise helpers (numpy; filters via pinsel._filters)."""
 from __future__ import annotations
 
 import numpy as np
-from scipy import ndimage
-from scipy.spatial import cKDTree
+from . import _filters
+from . import _filters as ndimage
+from ._filters import KDTree as cKDTree
 
 
 def rng(seed=None):
@@ -26,8 +27,8 @@ def spectral_noise(shape, beta=2.0, lowcut=0.0, highcut=None, seed=None, aniso=(
     """
     g = rng(seed)
     h, w = shape
-    fy = np.fft.fftfreq(h)[:, None] * aniso[0]
-    fx = np.fft.rfftfreq(w)[None, :] * aniso[1]
+    fy = _filters.fftfreq(h)[:, None] * aniso[0]
+    fx = _filters.rfftfreq(w)[None, :] * aniso[1]
     f = np.sqrt(fx * fx + fy * fy)
     f[0, 0] = 1.0
     amp = f ** (-beta / 2.0)
@@ -37,7 +38,7 @@ def spectral_noise(shape, beta=2.0, lowcut=0.0, highcut=None, seed=None, aniso=(
         amp *= np.exp(-(f / highcut) ** 2)
     amp[0, 0] = 0.0
     spec = (g.standard_normal(amp.shape) + 1j * g.standard_normal(amp.shape)) * amp
-    out = np.fft.irfft2(spec, s=shape)
+    out = _filters.irfft2(spec, s=shape)
     return normalize(out).astype(np.float32)
 
 

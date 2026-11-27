@@ -27,13 +27,17 @@ echo "fastmath left on: $(grep -rc 'fastmath=True' "$COPY/pinsel" | awk -F: '{s+
 T=$COPY/traces; mkdir -p "$T"
 status=0
 for ex in "$@"; do
+  # scripts outside the copied examples (e.g. rust/harness/pastel_demo.py) run from the clone
+  case "$ex" in /*) ;; *) [ -f "$COPY/$ex" ] || ex="$PWD/$ex" ;; esac
   name=$(basename "$ex" .py)
   for be in numba rust; do
+    # the numba run uses scipy filters, the rust run the Rust ones
+    if [ "$be" = numba ]; then fl=scipy; else fl=rust; fi
     rm -rf "$COPY/output"; mkdir -p "$COPY/output"
     t0=$(date +%s.%N)
     # PYTHONPATH: examples without their own sys.path line must import the
     # fastmath-off copy, not the editable install (found by the tools-film porter)
-    if ! (cd "$COPY" && PYTHONPATH="$COPY" PINSEL_BACKEND=$be PINSEL_TRACE=$T/$name.$be "$V" "$ex" > "$T/$name.$be.log" 2>&1); then
+    if ! (cd "$COPY" && PYTHONPATH="$COPY" PINSEL_BACKEND=$be PINSEL_FILTERS=$fl PINSEL_TRACE=$T/$name.$be "$V" "$ex" > "$T/$name.$be.log" 2>&1); then
       echo "== $name: FAILED under $be (log $T/$name.$be.log)"; tail -5 "$T/$name.$be.log"; status=1; continue 2
     fi
     t1=$(date +%s.%N)
