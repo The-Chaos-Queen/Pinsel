@@ -252,7 +252,8 @@ def _(cv):
 
 @scene('watercolor_salt', 'cold_press')
 def _(cv):
-    WC.wash(cv, WASH, pg.ULTRAMARINE, concentration=0.8, seed=TOOL_SEED)  # damp wash
+    WC.wet_paper(cv, WASH, seed=TOOL_SEED)  # salt does nothing on dry paper
+    WC.wash(cv, WASH, pg.ULTRAMARINE, concentration=0.8, seed=TOOL_SEED)
     WC.salt(cv, WASH, seed=TOOL_SEED)
 
 
