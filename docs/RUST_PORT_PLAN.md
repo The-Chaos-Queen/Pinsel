@@ -29,15 +29,19 @@ What this says:
 Pinsel/
   rust/
     pinsel-core/   pure Rust: spectral, pigments, canvas state, brushes, kernels, watercolor, tools ...
-    pinsel-py/     PyO3 bindings -> Python extension module pinsel._core (abi3, Python >= 3.10)
-  pinsel/          the Python package painters import; classes stay, heavy work calls pinsel._core
-  pyproject.toml   build with maturin
+    pinsel-py/     PyO3 bindings -> separate distribution "pinsel-core", module pinsel_core
+                   (abi3, Python >= 3.10, built with maturin)
+    harness/       A/B and same-seed comparison tools
+  pinsel/          the Python package painters import; classes stay, heavy work calls pinsel_core
+  pyproject.toml   unchanged (setuptools), so pinsel still installs where no wheel exists
 ```
+
+(Stage 0 decision: the extension is its own small distribution, not `pinsel._core`. `pinsel` keeps installing anywhere, and `pinsel._backend` uses `pinsel_core` when it is installed, numba otherwise.)
 
 The Python package stays the public face. A prebuilt wheel means `pip install` takes seconds: no compiler, no numba, no scipy. numpy stays a dependency because painters pass and get numpy arrays.
 
 **Windows from the start (Derek):** Laura's laptop is Windows, and Derek paints there with her anaconda Python. So:
-- the Python package falls back to the numba kernels whenever `pinsel._core` isn't installed, which keeps the old engine importable everywhere until wheels exist;
+- the Python package falls back to the numba kernels whenever `pinsel_core` isn't installed, which keeps the old engine importable everywhere until wheels exist;
 - the Windows wheel is built from stage A on, cross-compiled on ML-WS (maturin with cargo-xwin, target `x86_64-pc-windows-msvc`), so the laptop needs no Visual Studio.
 
 ## Stage 0, then three stages; each one leaves a working engine
@@ -49,7 +53,7 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 
 **Stage A: swap the kernels (no behaviour change).**
 - Port the 62 numba kernels (about 3,000 lines: `_kernels.py` 8, `tools.py` 26, `watercolor.py` 10 dual-compiled, `painterly.py` 5, `pastel.py` 3, `spectral.py` 2) to Rust, one by one, behind the same Python call signatures.
-- Replace the scipy calls (`gaussian_filter`, `sobel`, `zoom`, `maximum_filter`, `uniform_filter`, `cKDTree`; FFT for noise) with Rust functions in `_core`.
+- Replace the scipy calls (`gaussian_filter`, `sobel`, `zoom`, `maximum_filter`, `uniform_filter`, `cKDTree`; FFT for noise) with Rust functions in `pinsel_core`.
 - The Python glue stays as it is. After each kernel, all examples still run.
 - Also pull the two cheap memory wins forward (Derek): strip-wise PNG/TIFF output, and no full-size render temporaries.
 - End state: no numba and no scipy, so no compile minute. Speed about the same or a bit better. Memory a little lower.
@@ -77,7 +81,7 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 ## Verification
 
 - **Reference set** from Python 0.1 on ML-WS: every example's image, run time and peak memory, saved once under `rust/reference/`.
-- **Whole-image tests in stage A (Derek):** while the Python glue and its RNG are unchanged, the whole image is reproducible with the same seed. So every example is rendered with the old and the new kernels, same seed. Reported: the fraction of pixels with ΔE2000 > 1, and the maximum ΔE. This catches drift over 30,000 strokes that no per-call tolerance can see.
+- **Whole-image tests in stage A (Derek), with the criterion stage 0 forced:** every example is rendered with the old and the new kernels, same seed, reporting identical pixels, the fraction with ΔE2000 > 1, and max ΔE. Stage 0 showed the engine is chaotic: switching only numba's `fastmath` flag changes 0.3% of the alpine pixels by up to ΔE 56, exactly as much as switching to Rust (`rust/harness/STAGE0_RESULTS.md`). So the bar is: **Rust-vs-numba no larger than numba's own fastmath ON-vs-OFF difference** for that example. Bit-exact images aren't possible with any port.
 - **Kernel tests:** a recorder captures real kernel inputs while the examples run (arrays and scalars at each call, sampled), **recorded single-threaded**. Each Rust kernel must reproduce the numba output with `|a − b| ≤ 1e-5 + 1e-4·|b|`: an absolute floor, because relative error means nothing where a result is the difference of two nearly equal sums. Almost all randomness happens in Python before the kernel call. Only `tools._nb_seed` seeds numba's internal RNG; that tool is tested at image level. Also:
   - kernels with thresholds (wet or not, tooth caught or not, mask on or off) report **flipped pixels as a separate count**, because fastmath can flip a comparison and then the difference isn't small;
   - every `prange` loop is checked for overlapping in-place writes, because there the numba result already depends on thread timing.
@@ -90,7 +94,7 @@ The Python package stays the public face. A prebuilt wheel means `pip install` t
 
 ## Who does what
 
-- **Me (Tern):** the architecture and `_core` skeleton; the 8 core kernels in `_kernels.py`; the stage B canvas state; every review and merge; running all comparisons myself. Subagent reports are not taken on trust.
+- **Me (Tern):** the architecture and the `pinsel_core` skeleton; the 8 core kernels in `_kernels.py`; the stage B canvas state; every review and merge; running all comparisons myself. Subagent reports are not taken on trust.
 - **Sonnet subagents** (each on its own branch in a worktree, with a written contract, the Python original and the comparison tests):
   - watercolor (10 dual kernels and the sim glue);
   - tools part 1 (knife, airbrush, splatter, sponge);
