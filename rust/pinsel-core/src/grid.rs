@@ -403,3 +403,141 @@ impl WetCanvas for TiledWet {
         unsafe { (px_at(pa, ia), px_at(pb, ib)) }
     }
 }
+
+// --------------------------------------------------------------------------
+// General views for arrays outside the wet paste film (stage A, for tools,
+// watercolour and pastel kernels). Kernels index them with absolute (y, x)
+// through these methods only, never with raw `y * w + x`, so stage B can
+// back them with tiles or a bbox window without touching the kernels.
+// --------------------------------------------------------------------------
+
+/// Read-only H x W plane.
+#[derive(Clone, Copy)]
+pub struct Plane<'a, T> {
+    h: usize,
+    w: usize,
+    data: &'a [T],
+}
+
+impl<'a, T: Copy> Plane<'a, T> {
+    pub fn new(h: usize, w: usize, data: &'a [T]) -> Self {
+        assert_eq!(data.len(), h * w, "Plane: expected H*W elements");
+        Plane { h, w, data }
+    }
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.h
+    }
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.w
+    }
+    #[inline]
+    pub fn at(&self, y: usize, x: usize) -> T {
+        self.data[y * self.w + x]
+    }
+}
+
+/// Mutable H x W plane.
+pub struct PlaneMut<'a, T> {
+    h: usize,
+    w: usize,
+    data: &'a mut [T],
+}
+
+impl<'a, T: Copy> PlaneMut<'a, T> {
+    pub fn new(h: usize, w: usize, data: &'a mut [T]) -> Self {
+        assert_eq!(data.len(), h * w, "PlaneMut: expected H*W elements");
+        PlaneMut { h, w, data }
+    }
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.h
+    }
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.w
+    }
+    #[inline]
+    pub fn at(&self, y: usize, x: usize) -> T {
+        self.data[y * self.w + x]
+    }
+    #[inline]
+    pub fn set(&mut self, y: usize, x: usize, v: T) {
+        self.data[y * self.w + x] = v;
+    }
+    #[inline]
+    pub fn get_mut(&mut self, y: usize, x: usize) -> &mut T {
+        &mut self.data[y * self.w + x]
+    }
+}
+
+/// Read-only H x W x C array (C = NB for spectral arrays, 3 for RGB, ...).
+#[derive(Clone, Copy)]
+pub struct Spec<'a, T> {
+    h: usize,
+    w: usize,
+    c: usize,
+    data: &'a [T],
+}
+
+impl<'a, T: Copy> Spec<'a, T> {
+    pub fn new(h: usize, w: usize, c: usize, data: &'a [T]) -> Self {
+        assert_eq!(data.len(), h * w * c, "Spec: expected H*W*C elements");
+        Spec { h, w, c, data }
+    }
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.h
+    }
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.w
+    }
+    #[inline]
+    pub fn channels(&self) -> usize {
+        self.c
+    }
+    #[inline]
+    pub fn px(&self, y: usize, x: usize) -> &[T] {
+        let i = (y * self.w + x) * self.c;
+        &self.data[i..i + self.c]
+    }
+}
+
+/// Mutable H x W x C array.
+pub struct SpecMut<'a, T> {
+    h: usize,
+    w: usize,
+    c: usize,
+    data: &'a mut [T],
+}
+
+impl<'a, T: Copy> SpecMut<'a, T> {
+    pub fn new(h: usize, w: usize, c: usize, data: &'a mut [T]) -> Self {
+        assert_eq!(data.len(), h * w * c, "SpecMut: expected H*W*C elements");
+        SpecMut { h, w, c, data }
+    }
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.h
+    }
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.w
+    }
+    #[inline]
+    pub fn channels(&self) -> usize {
+        self.c
+    }
+    #[inline]
+    pub fn px(&self, y: usize, x: usize) -> &[T] {
+        let i = (y * self.w + x) * self.c;
+        &self.data[i..i + self.c]
+    }
+    #[inline]
+    pub fn px_mut(&mut self, y: usize, x: usize) -> &mut [T] {
+        let i = (y * self.w + x) * self.c;
+        &mut self.data[i..i + self.c]
+    }
+}

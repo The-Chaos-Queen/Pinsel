@@ -8,5 +8,16 @@
 pub mod grid;
 pub mod paste;
 
+// Stage A: one module per package; each is owned by one porter.
+pub mod spectral;
+pub mod render;
+pub mod watercolor;
+pub mod tools_common;
+pub mod tools_film;
+pub mod tools_spray;
+pub mod pastel;
+pub mod painterly;
+pub mod filters;
+
 /// Number of spectral bands (380-740 nm), as `pinsel.spectral.NB`.
 pub const NB: usize = 12;

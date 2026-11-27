@@ -9,15 +9,19 @@ use pcore::paste::{Bristles, PasteParams};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-fn ro<'a, T: numpy::Element>(a: &'a PyReadonlyArrayDyn<'_, T>, name: &str) -> PyResult<&'a [T]> {
-    a.as_slice()
-        .map_err(|_| PyValueError::new_err(format!("pinsel_core: {name} must be a C-contiguous array")))
-}
+mod util;
+use util::{ro, rw};
 
-fn rw<'a, T: numpy::Element>(a: &'a mut PyReadwriteArrayDyn<'_, T>, name: &str) -> PyResult<&'a mut [T]> {
-    a.as_slice_mut()
-        .map_err(|_| PyValueError::new_err(format!("pinsel_core: {name} must be a C-contiguous array")))
-}
+// Stage A: one binding file per package (same owners as pinsel-core).
+mod filters;
+mod painterly;
+mod pastel;
+mod render;
+mod spectral;
+mod tools_common;
+mod tools_film;
+mod tools_spray;
+mod watercolor;
 
 /// Same arguments, in the same order, as `pinsel._kernels.paste_stroke`.
 /// Returns the touched bounding box `(x0, y0, x1, y1)`.
@@ -145,6 +149,15 @@ fn paste_stroke(
 #[pymodule]
 fn pinsel_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(paste_stroke, m)?)?;
+    spectral::register(m)?;
+    render::register(m)?;
+    watercolor::register(m)?;
+    tools_common::register(m)?;
+    tools_film::register(m)?;
+    tools_spray::register(m)?;
+    pastel::register(m)?;
+    painterly::register(m)?;
+    filters::register(m)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("NB", pcore::NB)?;
     Ok(())
