@@ -1321,10 +1321,14 @@ def region_mask(canvas, region, soft=0.0, rough=0.0, respect_mask=True):
         p = _paper(canvas)
         ms = _nz.blur(m, 2.0)
         thr = 0.5 - rough * 0.3 * p.edge_noise
-        hard = ms > thr
         from . import _filters as _ndi
-        hard = _ndi.binary_opening(hard, iterations=1) | (ms > 0.97)
-        hard = _ndi.binary_closing(hard, iterations=1)
+        # pad by edge values first: the morphology treats outside the array
+        # as unpainted and used to eat the outermost row and column, which
+        # left white dashes along the canvas border (fixed 2026-11-27)
+        msp = np.pad(ms, 2, mode='edge')
+        thrp = np.pad(thr, 2, mode='edge') if np.ndim(thr) == 2 else thr
+        hard = _ndi.binary_opening(msp > thrp, iterations=1) | (msp > 0.97)
+        hard = _ndi.binary_closing(hard, iterations=1)[2:-2, 2:-2]
         m = np.where(hard, np.clip((ms - thr) * 2.5 + 0.75, 0.5, 1.0), 0.0)
         m = np.minimum(m, np.clip(_nz.blur(hard.astype(np.float32), 0.6) * 1.6, 0, 1))
     elif soft > 0:
