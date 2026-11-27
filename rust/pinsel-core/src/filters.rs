@@ -200,6 +200,10 @@ fn symmetry(w: &[f64]) -> i32 {
 }
 
 /// One correlate1d pass along `axis`: `dst = correlate(src, w)`.
+///
+/// Each outer slab is copied once into an f64 buffer padded by the
+/// boundary mode (rows of `inner` elements), so the tap loops are plain
+/// slice arithmetic. The per-element operation order is scipy's.
 pub fn correlate1d_pass<T: Elem>(
     src: &[T],
     dst: &mut [T],
@@ -214,63 +218,90 @@ pub fn correlate1d_pass<T: Elem>(
         return;
     }
     let fs = w.len();
-    let size1 = (fs / 2) as i64;
-    let size2 = (fs as i64) - size1 - 1;
+    let size1 = fs / 2;
+    let size2 = fs - size1 - 1;
     let sym = symmetry(w);
     let c = fs / 2;
+    let prows = n + size1 + size2;
+    let mut pad = vec![0.0f64; prows * inner];
     let mut acc = vec![0.0f64; inner];
-    // tap rows for one output row: index of the source row or None (cval)
-    let row_of = |o: usize, k: i64| -> Option<usize> {
-        map_index(k, n, mode).map(|kk| (o * n + kk) * inner)
-    };
-    let get = |r: Option<usize>, e: usize| -> f64 {
-        match r {
-            Some(base) => src[base + e].to_f64(),
-            None => cval,
-        }
-    };
     for o in 0..outer {
-        for k in 0..n {
-            let ki = k as i64;
-            let centre = (o * n + k) * inner;
-            if sym > 0 {
-                for e in 0..inner {
-                    acc[e] = src[centre + e].to_f64() * w[c];
+        // padded slab: row r holds source row r - size1
+        for r in 0..prows {
+            let drow = &mut pad[r * inner..(r + 1) * inner];
+            match map_index(r as i64 - size1 as i64, n, mode) {
+                Some(kk) => {
+                    let s = &src[(o * n + kk) * inner..(o * n + kk + 1) * inner];
+                    for (d, v) in drow.iter_mut().zip(s) {
+                        *d = v.to_f64();
+                    }
                 }
-                for jj in -size1..0 {
-                    let wj = w[(c as i64 + jj) as usize];
-                    let ra = row_of(o, ki + jj);
-                    let rb = row_of(o, ki - jj);
-                    for e in 0..inner {
-                        acc[e] += (get(ra, e) + get(rb, e)) * wj;
+                None => drow.iter_mut().for_each(|d| *d = cval),
+            }
+        }
+        if inner == 1 {
+            // contiguous line: scalar loops, exactly scipy's
+            for k in 0..n {
+                let acc1 = if sym > 0 {
+                    let mut t = pad[k + size1] * w[c];
+                    for j in 0..size1 {
+                        t += (pad[k + j] + pad[k + 2 * size1 - j]) * w[j];
+                    }
+                    t
+                } else if sym < 0 {
+                    let mut t = 0.0;
+                    for j in 0..size1 {
+                        t += (pad[k + j] - pad[k + 2 * size1 - j]) * w[j];
+                    }
+                    t
+                } else {
+                    let mut t = 0.0;
+                    for j in 0..fs {
+                        t += pad[k + j] * w[j];
+                    }
+                    t
+                };
+                dst[o * n + k] = T::from_f64(acc1);
+            }
+            continue;
+        }
+        for k in 0..n {
+            if sym > 0 {
+                let mid = &pad[(k + size1) * inner..(k + size1 + 1) * inner];
+                for (a, m) in acc.iter_mut().zip(mid) {
+                    *a = *m * w[c];
+                }
+                for j in 0..size1 {
+                    let ra = &pad[(k + j) * inner..(k + j + 1) * inner];
+                    let rb = &pad[(k + 2 * size1 - j) * inner..(k + 2 * size1 - j + 1) * inner];
+                    let wj = w[j];
+                    for ((a, x), y) in acc.iter_mut().zip(ra).zip(rb) {
+                        *a += (*x + *y) * wj;
                     }
                 }
             } else if sym < 0 {
-                for a in acc.iter_mut() {
-                    *a = 0.0;
-                }
-                for jj in -size1..0 {
-                    let wj = w[(c as i64 + jj) as usize];
-                    let ra = row_of(o, ki + jj);
-                    let rb = row_of(o, ki - jj);
-                    for e in 0..inner {
-                        acc[e] += (get(ra, e) - get(rb, e)) * wj;
+                acc.iter_mut().for_each(|a| *a = 0.0);
+                for j in 0..size1 {
+                    let ra = &pad[(k + j) * inner..(k + j + 1) * inner];
+                    let rb = &pad[(k + 2 * size1 - j) * inner..(k + 2 * size1 - j + 1) * inner];
+                    let wj = w[j];
+                    for ((a, x), y) in acc.iter_mut().zip(ra).zip(rb) {
+                        *a += (*x - *y) * wj;
                     }
                 }
             } else {
-                for a in acc.iter_mut() {
-                    *a = 0.0;
-                }
-                for jj in -size1..=size2 {
-                    let wj = w[(size1 + jj) as usize];
-                    let r = row_of(o, ki + jj);
-                    for e in 0..inner {
-                        acc[e] += get(r, e) * wj;
+                acc.iter_mut().for_each(|a| *a = 0.0);
+                for j in 0..fs {
+                    let r = &pad[(k + j) * inner..(k + j + 1) * inner];
+                    let wj = w[j];
+                    for (a, x) in acc.iter_mut().zip(r) {
+                        *a += *x * wj;
                     }
                 }
             }
-            for e in 0..inner {
-                dst[centre + e] = T::from_f64(acc[e]);
+            let drow = &mut dst[(o * n + k) * inner..(o * n + k + 1) * inner];
+            for (d, a) in drow.iter_mut().zip(&acc) {
+                *d = T::from_f64(*a);
             }
         }
     }
@@ -607,10 +638,12 @@ pub fn zoom<T: Elem>(
     // per axis, per output coordinate: None (constant region) or the
     // spline weights and the source index of each tap (None = padding)
     struct Ax {
+        valid: bool,
         w: [f64; 4],
         idx: [Option<usize>; 4],
     }
-    let mut axes: Vec<Vec<Option<Ax>>> = Vec::with_capacity(rank);
+    assert!(rank <= 4, "zoom: at most 4 axes");
+    let mut axes: Vec<Vec<Ax>> = Vec::with_capacity(rank);
     for j in 0..rank {
         let len = shape[j];
         let mut v = Vec::with_capacity(oshape[j]);
@@ -657,9 +690,9 @@ pub fn zoom<T: Elem>(
                 for hh in 0..=order {
                     idx[hh] = map_index(start + hh as i64, len, mode);
                 }
-                v.push(Some(Ax { w, idx }));
+                v.push(Ax { valid: true, w, idx });
             } else {
-                v.push(None);
+                v.push(Ax { valid: false, w: [0.0; 4], idx: [None; 4] });
             }
         }
         axes.push(v);
@@ -668,13 +701,17 @@ pub fn zoom<T: Elem>(
     let ntap = order + 1;
     let mut out = vec![T::default(); total];
     let mut pos = vec![0usize; rank];
-    let mut tap = vec![0usize; rank];
+    let mut tap = [0usize; 4];
     for o in out.iter_mut() {
-        let cells: Vec<&Option<Ax>> = (0..rank).map(|j| &axes[j][pos[j]]).collect();
-        if cells.iter().any(|c| c.is_none()) {
+        let mut cells: [&Ax; 4] = [&axes[0][0]; 4];
+        let mut all_valid = true;
+        for j in 0..rank {
+            cells[j] = &axes[j][pos[j]];
+            all_valid &= cells[j].valid;
+        }
+        if !all_valid {
             *o = T::from_f64(cval);
         } else {
-            let cells: Vec<&Ax> = cells.into_iter().map(|c| c.as_ref().unwrap()).collect();
             let mut t = 0.0f64;
             let ncombo = ntap.pow(rank as u32);
             for combo in 0..ncombo {
