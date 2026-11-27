@@ -167,8 +167,24 @@ paint_image(cv, reference_rgb, style='impressionist', seed=1)
 | `pinsel.painterly` | `PaletteSolver`, `AutoPainter`, `paint_image`, style presets |
 | `pinsel.grounds`, `pinsel.noise` | procedural grounds and noise |
 
+## Install
+The painting kernels run in Rust (the `pinsel_core` wheel) or, without it, in numba.
+
+**With the Rust kernels (recommended; needs only numpy and Pillow, no compiler, no numba):**
+download two wheels from the latest [release](../../releases): `pinsel-<version>-py3-none-any.whl`
+and the `pinsel_core` wheel for your platform (`manylinux` x86_64 or aarch64, `win_amd64`,
+`macosx` arm64 or x86_64), then
+
+    python -m pip install pinsel-*.whl pinsel_core-*.whl
+
+**With numba (the original engine, any platform):** `python -m pip install -e ".[numba]"` from the
+repository root. If both are installed, Rust is used; `PINSEL_BACKEND=numba` forces numba.
+
+The Rust kernels paint the same pictures as the numba ones (bit-identical to numba without
+fastmath on all examples; see `rust/harness/STAGEA_RESULTS.md`).
+
 ## Examples
-From the repository root, install with `python -m pip install -e .` and run `python examples/quickstart.py`. To run `two_readings.py`, first generate its base sheet with `python examples/untitled_marbling.py`.
+From the repository root, install as above (or `python -m pip install -e ".[numba]"`) and run `python examples/quickstart.py`. To run `two_readings.py`, first generate its base sheet with `python examples/untitled_marbling.py`.
 
 * `examples/brush_sampler.py` – tour of brush & paint behaviour
 * `examples/quickstart.py` – a minimal script

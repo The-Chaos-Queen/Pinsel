@@ -4,16 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pinsel"
-version = "0.1.0"
+version = "0.2.0"
 description = "A physically inspired painting engine for Python with 12-band Kubelka-Munk pigments, bristle simulation, fluid watercolour, dry media, and monotype printmaking."
 readme = "README.md"
 requires-python = ">=3.10"
+# The kernels come from the pinsel_core wheel (Rust; GitHub releases) or, without
+# it, from numba: install one of the two (pip install "pinsel[numba]").
 dependencies = [
     "numpy>=1.26",
-    "scipy>=1.11",
-    "numba>=0.59",
     "Pillow>=10",
 ]
+
+[project.optional-dependencies]
+numba = ["numba>=0.59", "scipy>=1.11"]
 
 [tool.setuptools.packages.find]
 include = ["pinsel*"]

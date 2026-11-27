@@ -1,0 +1,109 @@
+# Build the pinsel_core wheels (Rust kernels) for Linux, Windows and macOS,
+# plus the pure-Python pinsel wheel, smoke-test them, and attach everything
+# to a GitHub Release when a version tag (v*) is pushed.
+#
+# Painters install two files from the release:
+#   pip install pinsel-<ver>-py3-none-any.whl pinsel_core-<ver>-cp310-abi3-<platform>.whl
+name: wheels
+
+on:
+  push:
+    tags: ['v*']
+    branches: [rust-port, main]
+    paths: ['rust/**', 'pinsel/**', 'pyproject.toml', '.github/workflows/wheels.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: pinsel_core ${{ matrix.os }} ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, runner: ubuntu-latest, target: x86_64 }
+          - { os: linux, runner: ubuntu-latest, target: aarch64 }
+          - { os: windows, runner: windows-latest, target: x64 }
+          - { os: macos, runner: macos-14, target: aarch64 }
+          - { os: macos, runner: macos-14, target: x86_64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: rust/pinsel-py
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-${{ matrix.os }}-${{ matrix.target }}
+          path: rust/pinsel-py/dist/*.whl
+
+  pinsel:
+    name: pinsel (pure Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build && python -m build --wheel --outdir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pinsel
+          path: dist/*.whl
+
+  smoke:
+    # install only numpy + Pillow + the two wheels (no numba, no scipy) and paint
+    name: smoke ${{ matrix.os }}
+    needs: [core, pinsel]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, runner: ubuntu-latest, core: core-linux-x86_64 }
+          - { os: windows, runner: windows-latest, core: core-windows-x64 }
+          - { os: macos, runner: macos-14, core: core-macos-aarch64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: examples
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          path: wheels
+          pattern: '{pinsel,${{ matrix.core }}}'
+          merge-multiple: true
+      - shell: bash
+        run: |
+          python -m pip install numpy Pillow wheels/*.whl
+          python -c "import importlib.util as u; assert u.find_spec('numba') is None and u.find_spec('scipy') is None"
+          python -c "import pinsel._backend as B; import pinsel_core as r; print(B.NAME, len([n for n in dir(r) if not n.startswith('_')]), 'functions'); assert B.NAME == 'rust'"
+          mkdir -p smoke/examples && cp examples/quickstart.py smoke/examples/ && cd smoke
+          python -W error::RuntimeWarning examples/quickstart.py
+          python -c "from PIL import Image; im = Image.open('output/quickstart.png'); print(im.size); assert im.size == (900, 600)"
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [core, pinsel, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl
+          generate_release_notes: true
