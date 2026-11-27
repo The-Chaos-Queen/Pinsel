@@ -918,6 +918,11 @@ def _densify(ctrl, nctrl, sub, out, nout):
         nout[s] = m + 1
 
 
+from . import _backend as _B  # noqa: E402  (Rust port of the stroke-growing kernels)
+_grow_strokes = _B.port('painterly_grow_strokes', _grow_strokes, mutable={17: 'ctrl', 18: 'nctrl', 19: 'cols'})
+_densify = _B.port('painterly_densify', _densify, mutable={3: 'out', 4: 'nout'})
+
+
 # ==========================================================================
 # Styles
 # ==========================================================================
