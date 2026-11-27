@@ -21,7 +21,7 @@
 
 use rayon::prelude::*;
 use std::marker::PhantomData;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicI8, Ordering};
 
 // --------------------------------------------------------------------------
 // Stride-aware views
@@ -196,9 +196,23 @@ impl<'a, T: Copy> SpM<'a, T> {
 /// Windows below this many cells run serially (as `_SERIAL_BELOW` in Python).
 pub const SERIAL_BELOW: usize = 90_000;
 
+static SERIAL: AtomicI8 = AtomicI8::new(-1); // -1: not decided yet
+
+/// Force serial execution (tests compare serial and parallel runs; the
+/// environment variable `PINSEL_RS_SERIAL=1` does the same for a whole run).
+pub fn set_force_serial(on: bool) {
+    SERIAL.store(on as i8, Ordering::Relaxed);
+}
+
 fn force_serial() -> bool {
-    static F: OnceLock<bool> = OnceLock::new();
-    *F.get_or_init(|| std::env::var("PINSEL_RS_SERIAL").map(|v| !v.is_empty() && v != "0").unwrap_or(false))
+    match SERIAL.load(Ordering::Relaxed) {
+        -1 => {
+            let on = std::env::var("PINSEL_RS_SERIAL").map(|v| !v.is_empty() && v != "0").unwrap_or(false);
+            SERIAL.store(on as i8, Ordering::Relaxed);
+            on
+        }
+        v => v == 1,
+    }
 }
 
 /// `for i in prange(n)`: runs `f(i)` for every i, in parallel when the window
