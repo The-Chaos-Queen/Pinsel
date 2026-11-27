@@ -491,9 +491,9 @@ fn init_anticausal_wrap(c: &mut [f64], z: f64) {
     c[n - 1] *= z / (z_i - 1.0);
 }
 
-/// Cubic spline pole.
+/// Cubic spline pole. scipy has it as a literal; `sqrt(3) - 2` is 1 ulp off.
 fn pole3() -> f64 {
-    3.0f64.sqrt() - 2.0
+    -0.26794919243112270647
 }
 
 /// Cubic B-spline prefilter of one line, periodic ("grid-wrap") boundary.
