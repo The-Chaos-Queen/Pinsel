@@ -539,36 +539,27 @@ pub fn spline_filter3_wrap<T: Elem>(a: &[T], shape: &[usize]) -> Vec<f64> {
     cur
 }
 
-/// Spline weights of scipy's `spline_coefficients` for order 1 and 3.
+/// Spline weights as scipy's `get_spline_interpolation_weights` computes
+/// them (order 1 and 3), and the index of the first tap. The cubic weights
+/// are found by probing scipy with unit vectors: three are closed forms in
+/// the fractional offset, the last is the remainder.
 #[inline]
 fn spline_weights(x: f64, order: usize) -> ([f64; 4], i64) {
-    let start = if order & 1 == 1 {
-        x.floor() as i64 - (order as i64) / 2
-    } else {
-        (x + 0.5).floor() as i64 - (order as i64) / 2
-    };
+    let fl = x.floor();
+    let start = fl as i64 - (order as i64) / 2;
     let mut r = [0.0f64; 4];
-    for hh in 0..=order {
-        let y = (start as f64 - x + hh as f64).abs();
-        r[hh] = match order {
-            1 => {
-                if y > 1.0 {
-                    0.0
-                } else {
-                    1.0 - y
-                }
-            }
-            _ => {
-                if y < 1.0 {
-                    (y * y * (y - 2.0) * 3.0 + 4.0) / 6.0
-                } else if y < 2.0 {
-                    let y = 2.0 - y;
-                    (y * y * y) / 6.0
-                } else {
-                    0.0
-                }
-            }
-        };
+    if order == 1 {
+        let y = (start as f64 - x + 0.0).abs();
+        r[0] = if y > 1.0 { 0.0 } else { 1.0 - y };
+        let y = (start as f64 - x + 1.0).abs();
+        r[1] = if y > 1.0 { 0.0 } else { 1.0 - y };
+    } else {
+        let f = x - fl;
+        let y = 1.0 - f;
+        r[0] = y * y * y / 6.0;
+        r[1] = (f * f * (f - 2.0) * 3.0 + 4.0) / 6.0;
+        r[2] = (y * y * (y - 2.0) * 3.0 + 4.0) / 6.0;
+        r[3] = 1.0 - r[0] - r[1] - r[2];
     }
     (r, start)
 }
