@@ -2,21 +2,16 @@
 
   PINSEL_BACKEND=numba|rust venv/bin/python rust/harness/scenes.py
 
-Every scene has a fixed canvas seed (CANVAS_SEED) and a fixed tool seed
-(TOOL_SEED). Oil and paste tools use ground 'canvas'; watercolour, dry media
-and pens use 'cold_press'. Each mark is centred on (128, 128).
-
-Per scene, from canvas.render_linear() (linear sRGB):
-  covered_px        pixels whose RGB differs from the blank canvas by > 0.01
-                    in any channel
-  mean_linear_rgb   mean over the whole canvas
-  profile_luma      luminance Y = 0.2126 R + 0.7152 G + 0.0722 B along a line
-                    through (128, 128), 129 px long (+-64), perpendicular to
-                    the mark ('y' = vertical line, 'x' = horizontal line)
-
-Writes rust/harness/results/scenes_<backend>.json. Scenes that build on a base
-mark (salt, lift, smudge, blender, eraser, scrape, sgraffito) measure the
-base as well: the covered area is the state after the scene's last tool.
+Fixed canvas seed (CANVAS_SEED) and tool seed (TOOL_SEED). Paste and oil tools
+use ground 'canvas'; watercolour, dry media and pens use 'cold_press'. Each
+mark is centred on (128, 128). Per scene, from canvas.render_linear():
+  covered_px       pixels whose RGB differs from the blank canvas by > 0.01 (any channel)
+  mean_linear_rgb  mean over the whole canvas
+  profile_luma     linear luminance Y along a 129 px line through (128, 128),
+                   'y' = vertical line (across horizontal marks), 'x' = horizontal
+Scenes that need a base mark (salt, lift, smudge, blender, eraser, scrape,
+sgraffito) include it: the measurement is the state after the scene's last tool.
+Writes rust/harness/results/scenes_<backend>.json.
 """
 from __future__ import annotations
 
@@ -41,6 +36,7 @@ RES = ROOT / 'rust' / 'harness' / 'results'
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 H_LINE = P.line((60, 128), (196, 128))
 V_LINE = P.line((128, 60), (128, 196))
+WASH = (60, 88, 196, 168)
 SCENES = []  # (name, ground, profile axis, build function)
 
 
@@ -55,28 +51,6 @@ def new_canvas(ground):
     return ps.Canvas(SIZE, SIZE, ground=ground, seed=CANVAS_SEED)
 
 
-def finish(cv):
-    """Let watercolour flow and dry, then bake everything into the canvas."""
-    if cv.wc is not None:
-        cv.wait(60)
-    cv.dry()
-
-
-def measure(img, blank, axis):
-    covered = np.abs(img - blank).max(axis=2) > 0.01
-    luma = img @ LUMA
-    if axis == 'y':
-        prof = luma[128 - HALF:128 + HALF + 1, 128]
-    else:
-        prof = luma[128, 128 - HALF:128 + HALF + 1]
-    return {
-        'covered_px': int(covered.sum()),
-        'covered_fraction': float(covered.mean()),
-        'mean_linear_rgb': img.reshape(-1, 3).mean(axis=0, dtype=np.float64).tolist(),
-        'profile_luma': [float(v) for v in prof],
-    }
-
-
 _BLANK = {}
 
 
@@ -86,18 +60,31 @@ def blank_render(ground):
     return _BLANK[ground]
 
 
+def measure(img, blank, axis):
+    covered = np.abs(img - blank).max(axis=2) > 0.01
+    luma = img @ LUMA
+    prof = luma[128 - HALF:128 + HALF + 1, 128] if axis == 'y' else luma[128, 128 - HALF:128 + HALF + 1]
+    return {
+        'covered_px': int(covered.sum()),
+        'covered_fraction': float(covered.mean()),
+        'mean_linear_rgb': img.reshape(-1, 3).mean(axis=0, dtype=np.float64).tolist(),
+        'profile_luma': [float(v) for v in prof],
+    }
+
+
 def run_scene(ground, axis, build):
     cv = new_canvas(ground)
     build(cv)
-    finish(cv)
+    if cv.wc is not None:  # let watercolour flow, then dry everything
+        cv.wait(60)
+    cv.dry()
     return measure(cv.render_linear(), blank_render(ground), axis)
 
 
-# ---------------------------------------------------------------- oil brushes
+# oil brushes (ground 'canvas')
 def _oil_brush(shape, size, paint):
     def build(cv):
-        b = ps.Brush(shape, size, seed=TOOL_SEED).load(paint)
-        cv.stroke(b, H_LINE)
+        cv.stroke(ps.Brush(shape, size, seed=TOOL_SEED).load(paint), H_LINE)
     return build
 
 
@@ -107,11 +94,9 @@ for _shape, _size, _paint in [('round', 14, pg.ULTRAMARINE), ('flat', 14, pg.ALI
     SCENES.append((f'brush_{_shape}', 'canvas', 'y', _oil_brush(_shape, _size, _paint)))
 
 
-# ---------------------------------------------------------------- palette knife
 @scene('knife_spread', 'canvas')
 def _(cv):
-    knife = T.PaletteKnife(seed=TOOL_SEED).load(pg.CADMIUM_YELLOW)
-    knife.spread(cv, H_LINE)
+    T.PaletteKnife(seed=TOOL_SEED).load(pg.CADMIUM_YELLOW).spread(cv, H_LINE)
 
 
 @scene('knife_scrape', 'canvas')
@@ -125,24 +110,20 @@ def _(cv):
 @scene('knife_sgraffito', 'canvas')
 def _(cv):
     knife = T.PaletteKnife(seed=TOOL_SEED).load(pg.ALIZARIN_CRIMSON)
-    knife.spread(cv, P.line((60, 128), (196, 128)))  # wet slab
+    knife.spread(cv, H_LINE)  # wet slab
     knife.sgraffito(cv, H_LINE, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- airbrush
 @scene('airbrush_spray', 'canvas')
 def _(cv):
-    ab = T.Airbrush(seed=TOOL_SEED).load(pg.CERULEAN_BLUE)
-    ab.spray(cv, H_LINE, seed=TOOL_SEED)
+    T.Airbrush(seed=TOOL_SEED).load(pg.CERULEAN_BLUE).spray(cv, H_LINE, seed=TOOL_SEED)
 
 
 @scene('airbrush_dot', 'canvas', 'x')
 def _(cv):
-    ab = T.Airbrush(seed=TOOL_SEED).load(pg.CERULEAN_BLUE)
-    ab.dot(cv, 128, 128, seed=TOOL_SEED)
+    T.Airbrush(seed=TOOL_SEED).load(pg.CERULEAN_BLUE).dot(cv, 128, 128, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- splatter
 @scene('splatter_flick', 'canvas')
 def _(cv):
     sp = T.Splatter(seed=TOOL_SEED).load(pg.CADMIUM_RED.thinned(0.5))
@@ -151,28 +132,22 @@ def _(cv):
 
 @scene('splatter_tap', 'canvas', 'x')
 def _(cv):
-    sp = T.Splatter(seed=TOOL_SEED).load(pg.CADMIUM_RED.thinned(0.5))
-    sp.tap(cv, (128, 128), seed=TOOL_SEED)
+    T.Splatter(seed=TOOL_SEED).load(pg.CADMIUM_RED.thinned(0.5)).tap(cv, (128, 128), seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- sponge
 @scene('sponge_dab', 'canvas', 'x')
 def _(cv):
-    sp = T.Sponge(size=30, seed=TOOL_SEED).load(pg.YELLOW_OCHRE)
-    sp.dab(cv, 128, 128, pressure=0.6, seed=TOOL_SEED)
+    T.Sponge(size=30, seed=TOOL_SEED).load(pg.YELLOW_OCHRE).dab(cv, 128, 128, pressure=0.6, seed=TOOL_SEED)
 
 
 @scene('sponge_drag', 'canvas')
 def _(cv):
-    sp = T.Sponge(size=30, seed=TOOL_SEED).load(pg.SAP_GREEN)
-    sp.drag(cv, H_LINE, pressure=0.4, seed=TOOL_SEED)
+    T.Sponge(size=30, seed=TOOL_SEED).load(pg.SAP_GREEN).drag(cv, H_LINE, pressure=0.4, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- pen
 @scene('pen_line', 'cold_press')
 def _(cv):
-    pen = T.Pen('technical', width=4.0, seed=TOOL_SEED).load(pg.IVORY_BLACK)
-    pen.line(cv, H_LINE, seed=TOOL_SEED)
+    T.Pen('technical', width=4.0, seed=TOOL_SEED).load(pg.IVORY_BLACK).line(cv, H_LINE, seed=TOOL_SEED)
 
 
 @scene('pen_hatch', 'cold_press', 'x')
@@ -181,11 +156,9 @@ def _(cv):
     pen.hatch(cv, 60, 60, 196, 196, angle=45.0, spacing=8.0, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- smudge and blender
 def _base_stroke(cv):
-    """A wet yellow flat stroke across the middle, for smudge and blender."""
-    b = ps.Brush('flat', 14, seed=TOOL_SEED).load(pg.CADMIUM_YELLOW)
-    cv.stroke(b, P.line((60, 110), (196, 110)))
+    """A wet yellow flat stroke across the middle (base for smudge and blender)."""
+    cv.stroke(ps.Brush('flat', 14, seed=TOOL_SEED).load(pg.CADMIUM_YELLOW), P.line((60, 110), (196, 110)))
 
 
 @scene('smudge', 'canvas')
@@ -200,7 +173,6 @@ def _(cv):
     T.Blender(size=12, seed=TOOL_SEED).stroke(cv, V_LINE, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- crayon
 @scene('oil_crayon_tip', 'cold_press')
 def _(cv):
     T.OilCrayon(size=4).load(pg.ULTRAMARINE).stroke(cv, H_LINE, pressure=0.85)
@@ -211,7 +183,6 @@ def _(cv):
     T.OilCrayon(size=18, side=0.9).load(pg.CADMIUM_YELLOW).stroke(cv, H_LINE, pressure=0.9)
 
 
-# ---------------------------------------------------------------- pastel, charcoal, eraser
 @scene('soft_pastel', 'cold_press')
 def _(cv):
     ps.SoftPastel(size=10, seed=TOOL_SEED).load(pg.CADMIUM_RED).stroke(cv, H_LINE, seed=TOOL_SEED)
@@ -224,20 +195,14 @@ def _(cv):
 
 @scene('kneaded_eraser', 'canvas')
 def _(cv):
-    b = ps.Brush('flat', 12, seed=TOOL_SEED).load(pg.CADMIUM_RED)
-    cv.stroke(b, H_LINE)  # wet stroke
-    ps.KneadedEraser(size=14, strength=0.65, seed=TOOL_SEED).stroke(cv, P.line((100, 128), (156, 128)),
-                                                                    pressure=0.8)
-
-
-# ---------------------------------------------------------------- watercolour
-WASH = (60, 88, 196, 168)
+    cv.stroke(ps.Brush('flat', 12, seed=TOOL_SEED).load(pg.CADMIUM_RED), H_LINE)  # wet stroke
+    ps.KneadedEraser(size=14, strength=0.65, seed=TOOL_SEED).stroke(
+        cv, P.line((100, 128), (156, 128)), pressure=0.8)
 
 
 @scene('watercolor_brush', 'cold_press')
 def _(cv):
-    b = ps.Brush('round', 14, seed=TOOL_SEED).load(pg.ULTRAMARINE.as_medium('watercolor'))
-    cv.stroke(b, H_LINE)
+    cv.stroke(ps.Brush('round', 14, seed=TOOL_SEED).load(pg.ULTRAMARINE.as_medium('watercolor')), H_LINE)
 
 
 @scene('watercolor_wash', 'cold_press')
@@ -264,7 +229,6 @@ def _(cv):
     WC.lift(cv, (96, 112, 160, 144), strength=0.7, seed=TOOL_SEED)
 
 
-# ---------------------------------------------------------------- glaze, stencil
 @scene('glaze', 'canvas')
 def _(cv):
     T.glaze(cv, pg.ALIZARIN_CRIMSON.thinned(0.6), thickness=0.12, region=WASH, seed=TOOL_SEED)
@@ -272,21 +236,17 @@ def _(cv):
 
 @scene('stencil_tape', 'canvas')
 def _(cv):
-    tape = T.Stencil.tape(cv, (40, 128), (216, 128), width=24, seed=TOOL_SEED)
-    with tape:
-        b = ps.Brush('flat', 14, seed=TOOL_SEED).load(pg.CADMIUM_RED)
-        cv.stroke(b, V_LINE)
+    with T.Stencil.tape(cv, (40, 128), (216, 128), width=24, seed=TOOL_SEED):
+        cv.stroke(ps.Brush('flat', 14, seed=TOOL_SEED).load(pg.CADMIUM_RED), V_LINE)
 
 
-# ---------------------------------------------------------------- main
 def main():
     out = {'backend': _backend.NAME, 'size': SIZE, 'canvas_seed': CANVAS_SEED,
            'tool_seed': TOOL_SEED, 'profile': {'half_width_px': HALF, 'luma': 'linear Y'},
            'scenes': {}, 'skipped': []}
     for name, ground, axis, build in SCENES:
-        out['scenes'][name] = {'ground': ground, 'profile_axis': axis,
-                               **run_scene(ground, axis, build)}
-        s = out['scenes'][name]
+        s = {'ground': ground, 'profile_axis': axis, **run_scene(ground, axis, build)}
+        out['scenes'][name] = s
         print(f"{name:18s} covered={s['covered_px']:6d} ({s['covered_fraction']:.4f}) "
               f"mean_rgb={[round(v, 5) for v in s['mean_linear_rgb']]}")
     RES.mkdir(parents=True, exist_ok=True)
