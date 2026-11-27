@@ -145,6 +145,15 @@ fn filters_zoom<'py>(
     })
 }
 
+/// `scipy.ndimage.spline_filter(a, order=3, output=float64, mode='grid-wrap')`.
+#[pyfunction]
+fn filters_spline_filter(py: Python<'_>, a: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    with_float!(py, a, x, shape, T, {
+        let out = py.detach(|| f::spline_filter3_wrap::<T>(x, &shape));
+        Ok(to_array(py, out, &shape)?.unbind())
+    })
+}
+
 fn bool_in<'a>(arr: &'a PyReadonlyArrayDyn<'_, bool>) -> PyResult<(&'a [bool], usize, usize)> {
     let s = arr.shape();
     if s.len() != 2 {
@@ -300,6 +309,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(filters_uniform_filter, m)?)?;
     m.add_function(wrap_pyfunction!(filters_maximum_filter, m)?)?;
     m.add_function(wrap_pyfunction!(filters_zoom, m)?)?;
+    m.add_function(wrap_pyfunction!(filters_spline_filter, m)?)?;
     m.add_function(wrap_pyfunction!(filters_binary_erosion, m)?)?;
     m.add_function(wrap_pyfunction!(filters_binary_dilation, m)?)?;
     m.add_function(wrap_pyfunction!(filters_binary_opening, m)?)?;
