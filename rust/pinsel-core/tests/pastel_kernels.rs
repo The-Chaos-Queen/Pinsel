@@ -7,7 +7,7 @@
 //! * the eraser removes exactly what its footprint says (removed from the
 //!   canvas = taken up), per band, and never touches masked pixels.
 
-use pinsel_core::grid::{DenseWet, Plane, PlaneMut, SpecMut, TiledWet, WetArrays, WetCanvas};
+use pinsel_core::grid::{DenseWet, Plane, PlaneMut, SpecMut, TiledWet, WetArrays};
 use pinsel_core::pastel::{eraser_stroke, lcg_init, lcg_next, pastel_stroke, PastelParams};
 use pinsel_core::NB;
 

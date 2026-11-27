@@ -91,7 +91,7 @@ fn stroke_grows_both_ways_along_a_straight_field() {
 }
 
 #[test]
-fn stroke_stops_at_the_border_and_at_the_region_edge() {
+fn stroke_stops_at_the_region_edge() {
     let (rf, cvl, v, mut region) = flat();
     for y in 0..H {
         for x in 40..W {
