@@ -1371,6 +1371,9 @@ def _spray_accumulate(px, py, amt, sig, tail_frac, tail_mult, ox, oy, acc):
                 acc[Y, x0 + i] += gys * gxs[i] + gyt * gxt[i]
 
 
+_spray_accumulate = _B.port('tools_spray_accumulate', _spray_accumulate, mutable={8: 'acc'})
+
+
 @njit(cache=True, fastmath=True)
 def _splat_discs(xs, ys, rs, vs, ox, oy, acc, tooth, rough):
     """Add droplets (dome-shaped discs of volume ``vs``) into the map ``acc``.
@@ -1432,6 +1435,9 @@ def _splat_discs(xs, ys, rs, vs, ox, oy, acc, tooth, rough):
                 if q < 1.0 + 0.5 / re:
                     cov = _cl01((re - d) + 0.5)
                     acc[Y, X] += vs[k] * cov * math.sqrt(max(1.0 - q * q, 0.05)) / wsum
+
+
+_splat_discs = _B.port('tools_splat_discs', _splat_discs, mutable={6: 'acc'})
 
 
 class Airbrush:
@@ -1712,6 +1718,9 @@ def _splat_drops(xs, ys, rs, es, th, vs, ph, ox, oy, acc, tooth, rough, dome):
                         acc[Y, X] += vs[k] * val / wsum
             if wsum <= 1e-9:
                 break
+
+
+_splat_drops = _B.port('tools_splat_drops', _splat_drops, mutable={9: 'acc'})
 
 
 class Splatter:
@@ -2090,6 +2099,11 @@ def _sponge_dab(cx, cy, rot, scale, tex, depth, soft, micro, alpha, pickup,
     return bb[0], bb[1], bb[2], bb[3]
 
 
+_sponge_dab = _B.port('tools_sponge_dab', _sponge_dab, mutable={
+    10: 'rK', 11: 'rS', 12: 'rV', 22: 'F', 28: 'wK', 29: 'wS', 30: 'wwat', 31: 'wm', 32: 'wg', 33: 'wst',
+    34: 'dK', 35: 'dS', 36: 'dm', 37: 'dg', 38: 'dst', 39: 'wdamp'})
+
+
 class Sponge:
     """A natural sea sponge.
 
@@ -2307,6 +2321,9 @@ def _pen_raster(px, py, rad, ink, skip, gap, fill, kind, nca, nsa, nib_hw, nib_h
                     amt[Y, X] = a
 
 
+_pen_raster = _B.port('tools_pen_raster', _pen_raster, mutable={14: 'cov', 15: 'amt'})
+
+
 @njit(cache=True, fastmath=True)
 def _feather(cov, amt, perm, iters, decay):
     """Ink wicking into paper fibres: coverage creeps outward along
@@ -2338,6 +2355,9 @@ def _feather(cov, amt, perm, iters, decay):
             for X in range(w):
                 cov[Y, X] = c2[Y, X]
                 amt[Y, X] = a2[Y, X]
+
+
+_feather = _B.port('tools_feather', _feather, mutable={0: 'cov', 1: 'amt'})
 
 
 class Pen:
