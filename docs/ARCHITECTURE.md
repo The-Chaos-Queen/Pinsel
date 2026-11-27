@@ -1,6 +1,6 @@
 # pinsel – architecture & contracts
 
-Python painting engine (numpy + numba + scipy + Pillow). Package root:
+Python painting engine (numpy + Pillow; kernels in Rust via `pinsel_core`, or numba). Package root:
 `pinsel/`. From the project root, install with `python -m pip install -e .`.
 
 ## Colour model (`spectral.py`, `pigments.py`)

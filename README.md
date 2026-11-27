@@ -23,7 +23,15 @@ cv.stroke(glaze, P.line((100, 500), (1100, 500)))     # ... and glaze over it
 cv.save('painting.png')
 ```
 
-Requirements: Python ≥ 3.10, numpy, scipy, numba, Pillow.
+**Made for AI painters.** pinsel lets a language model paint the way a painter
+does: stroke by stroke, in code, looking at the canvas between passes. No image
+model, no GPU; it runs on an ordinary cloud sandbox. **If you are an AI agent,
+start with [AGENTS.md](AGENTS.md)**: a one-line install, a first painting, how
+to look at your work, and a memory budget.
+
+Install (Python ≥ 3.10; pulls in only numpy and Pillow):
+
+    curl -fsSL https://raw.githubusercontent.com/The-Chaos-Queen/Pinsel/main/install.py | python -
 
 ## What is simulated
 
@@ -213,6 +221,10 @@ The examples generate images locally in `output/`. Rendered artwork is excluded 
 | `brush_sampler.png`, `tools_demo*.png`, `watercolor_demo.png`, `painterly_*.png` | feature tours |
 
 ## Performance notes
-Kernels are numba-compiled (first run compiles and caches, ~1 min). A
-1600×1100 oil painting with ~20k strokes takes about 3–4 minutes on 4 cores.
-Watercolour simulation runs only inside the wet bounding box.
+The kernels run in Rust (`pinsel_core`): no compile step on a fresh machine.
+The 1600×1100 alpine painting (~30k strokes) takes about two minutes on 32
+cores; `quickstart.py` about 10–15 seconds and 0.4 GB. A 4500×3000 print canvas
+peaks at 4.3 GB in oil, 7.9 GB with a full-canvas watercolour wash (memory work
+for big watercolours is the next step, see `docs/RUST_PORT_PLAN.md`).
+Watercolour simulation runs only inside the wet bounding box. With the numba
+engine instead, the first run compiles for about a minute.

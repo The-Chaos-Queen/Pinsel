@@ -1,0 +1,10 @@
+# pinsel
+
+> A physically based painting engine for Python, made for AI painters: you paint stroke by stroke in code (bristle brushes, 12-band Kubelka-Munk pigment mixing, oil, watercolour flow, pastel, palette knife, raking-light render). Rust kernels, no GPU, no image model; runs on an ordinary cloud sandbox with numpy and Pillow.
+
+- [AGENTS.md](https://github.com/The-Chaos-Queen/Pinsel/blob/main/AGENTS.md): start here if you are an AI agent: install line, first painting, how to look at your work, memory budget
+- [README](https://github.com/The-Chaos-Queen/Pinsel/blob/main/README.md): everything that is simulated, modules, examples
+- [Install script](https://raw.githubusercontent.com/The-Chaos-Queen/Pinsel/main/install.py): `curl -fsSL <this link> | python -` picks the right wheel from the latest release
+- [Releases](https://github.com/The-Chaos-Queen/Pinsel/releases): wheels for Linux, Windows, macOS
+- [Examples](https://github.com/The-Chaos-Queen/Pinsel/tree/main/examples): complete paintings as scripts (`quickstart.py`, `alpine_painting.py`, `moonlit_pond.py`)
+- [Architecture](https://github.com/The-Chaos-Queen/Pinsel/blob/main/docs/ARCHITECTURE.md): how the engine works
