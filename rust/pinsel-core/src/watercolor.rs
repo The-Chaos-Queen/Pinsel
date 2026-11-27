@@ -1100,9 +1100,8 @@ pub fn local(
                         wf = 1.0;
                     }
                     // flowing water lifts loosely settled pigment (shear)
-                    // numba's abs() of a float32 element is float64 here: the sum runs in f64
-                    let sp = u.at(y, x).abs() as f64 + u.at(y, x + 1).abs() as f64 + v.at(y, x).abs() as f64 + v.at(y + 1, x).abs() as f64;
-                    let mut spd = sp / (hv + 0.05);
+                    let sp = u.at(y, x).abs() + u.at(y, x + 1).abs() + v.at(y, x).abs() + v.at(y + 1, x).abs();
+                    let mut spd = (sp as f64) / (hv + 0.05);
                     if spd > 2.0 {
                         spd = 2.0;
                     }
