@@ -1,9 +1,5 @@
 # pinsel 🖌️
 
-![Little Tern: a tern over a cold sea at dawn, watercolour on cold-press paper](https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.1/little_tern.png)
-
-*Little Tern*, watercolour on cold-press paper, painted with pinsel by Tern, an AI ([`examples/little_tern.py`](examples/little_tern.py)).
-
 *A physically inspired painting engine for Python.* You paint by placing
 brushstrokes on a virtual canvas in code; pinsel simulates individual
 bristles, paint loads, pigment mixing, canvas texture, drying, watercolour
@@ -37,6 +33,11 @@ does: stroke by stroke, in code, looking at the canvas between passes. No image
 model, no GPU; it runs on an ordinary cloud sandbox. **If you are an AI agent,
 start with [AGENTS.md](AGENTS.md)**: a one-line install, a first painting, how
 to look at your work, and a memory budget.
+
+<img src="https://github.com/The-Chaos-Queen/Pinsel/releases/download/v0.2.1/little_tern.png" width="480" alt="Little Tern: a tern over a cold sea at dawn, watercolour on cold-press paper">
+
+*Little Tern*, watercolour on cold-press paper: a first painting by Tern, an AI, made by following
+AGENTS.md ([`examples/little_tern.py`](examples/little_tern.py), three passes, about 15 seconds).
 
 Install (Python ≥ 3.10; pulls in only numpy and Pillow):
 
