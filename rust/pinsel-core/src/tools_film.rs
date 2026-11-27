@@ -583,8 +583,6 @@ pub fn sgraffito_kernel<C: WetCanvas>(
     let mut bb: [i64; 4] = [w, h, -1, -1];
     let mut cr_k = [0.0f64; NB]; // carried crumb on the tip
     let mut cr_s = [0.0f64; NB];
-    let mut rem = [0.0f64; NB]; // scratch row for one pixel's removal
-    let mut rem_s = [0.0f64; NB];
     let mut kk = [0.0f64; NB];
     let mut ks = [0.0f64; NB];
     let mut cv_ = 0.0f64;
@@ -669,8 +667,8 @@ pub fn sgraffito_kernel<C: WetCanvas>(
                     continue;
                 }
                 let (pg, pb, pd) = (pg as f64, pb as f64, pd as f64);
-                rem = [0.0; NB];
-                rem_s = [0.0; NB];
+                let mut rem = [0.0f64; NB]; // scratch row for this pixel's removal
+                let mut rem_s = [0.0f64; NB];
                 let dv = take(&mut cv.px(yu, xu), fv as f64 * fr, &mut rem, &mut rem_s);
                 if dv <= 0.0 {
                     continue;
