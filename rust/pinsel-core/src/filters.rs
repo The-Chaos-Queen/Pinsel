@@ -587,6 +587,11 @@ pub fn zoom<T: Elem>(
     if total == 0 || a.is_empty() {
         return (vec![T::default(); total], oshape);
     }
+    // scipy returns the input unchanged (no prefilter, no interpolation)
+    // when every requested zoom factor is exactly 1 (fbm hits this at s = 1)
+    if zoom.iter().all(|&z| z == 1.0) {
+        return (a.to_vec(), oshape);
+    }
     let filtered: Option<Vec<f64>> = if order == 3 { Some(spline_filter3_wrap(a, shape)) } else { None };
     // per-axis zoom factor: (in - 1) / (out - 1), or 1 when out == 1
     let zf: Vec<f64> = (0..rank)
