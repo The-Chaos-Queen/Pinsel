@@ -34,6 +34,7 @@ import time as _time
 import numpy as np
 
 from . import _kernels as K
+from . import _backend as B
 from .grounds import make_ground
 from .spectral import NB, SPEC_TO_RGB, linear_to_srgb, rgb_to_spectrum, km_composite_np
 from .noise import blur
@@ -226,7 +227,7 @@ class Canvas:
             from . import watercolor
             watercolor.settle(self)
             sel = np.ones((self.H, self.W), dtype=np.bool_)
-            K.bake_deposit(sel, self.below_R, self.wc.dK, self.wc.dS)
+            B.bake_deposit(sel, self.below_R, self.wc.dK, self.wc.dS)
             self.wc.dm[:] = 0; self.wc.dg[:] = 0; self.wc.dst[:] = 0
         sel = (self.film_vol > 0) | (self.base_vol > 0) | (self.film_K.sum(axis=2) > 0) \
             | (self.base_K.sum(axis=2) > 0)
@@ -234,7 +235,7 @@ class Canvas:
 
     def _bake(self, sel):
         h_before = self.h_dry.copy()
-        K.bake_film(sel.astype(np.bool_), self.below_R, self.film_K, self.film_S,
+        B.bake_film(sel.astype(np.bool_), self.below_R, self.film_K, self.film_S,
                     self.film_vol, self.wet, self.gloss, self.body, self.drate,
                     self.h_dry, self.gloss_dry, 0.7, self.base_K, self.base_S, self.base_vol)
         # paint levels a little while it dries (viscous flow softens bristle ridges)
@@ -337,14 +338,14 @@ class Canvas:
         out = np.empty((y1 - y0, x1 - x0, 3), dtype=np.float32)
         wc = self.wc
         if wc is not None:
-            K.render_reflectance(self.below_R[sl], self.base_K[sl], self.base_S[sl],
+            B.render_reflectance(self.below_R[sl], self.base_K[sl], self.base_S[sl],
                                  self.film_K[sl], self.film_S[sl], True,
                                  wc.K[sl], wc.S[sl], wc.dK[sl], wc.dS[sl],
                                  wc.water[sl], wc.damp[sl], SPEC_TO_RGB, out)
         else:
             d3 = np.zeros((1, 1, NB), dtype=np.float32)
             d2 = np.zeros((1, 1), dtype=np.float32)
-            K.render_reflectance(self.below_R[sl], self.base_K[sl], self.base_S[sl],
+            B.render_reflectance(self.below_R[sl], self.base_K[sl], self.base_S[sl],
                                  self.film_K[sl], self.film_S[sl], False,
                                  d3, d3, d3, d3, d2, d2, SPEC_TO_RGB, out)
         return out

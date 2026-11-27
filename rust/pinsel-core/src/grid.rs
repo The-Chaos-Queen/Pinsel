@@ -540,4 +540,19 @@ impl<'a, T: Copy> SpecMut<'a, T> {
         let i = (y * self.w + x) * self.c;
         &mut self.data[i..i + self.c]
     }
+    /// Run `f(y, row)` for every row in parallel; `row` holds the row's
+    /// W * C values (pixel x at `row[x * C .. x * C + C]`). Rows are
+    /// disjoint, so per-pixel results don't depend on the thread count.
+    pub fn par_rows<F>(&mut self, f: F)
+    where
+        T: Send,
+        F: Fn(usize, &mut [T]) + Sync + Send,
+    {
+        use rayon::prelude::*;
+        let n = self.w * self.c;
+        if n == 0 {
+            return;
+        }
+        self.data.par_chunks_mut(n).enumerate().for_each(|(y, row)| f(y, row));
+    }
 }

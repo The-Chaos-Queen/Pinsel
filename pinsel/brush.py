@@ -363,7 +363,7 @@ class Brush:
         pp = np.ascontiguousarray(pp, dtype=np.float64); pa = np.ascontiguousarray(pa, dtype=np.float64)
         if pr['fluid']:
             wc = canvas.ensure_watercolor()
-            bbox = K.fluid_stroke(px, py, pp, pa, self.spacing, float(speed),
+            bbox = B.fluid_stroke(px, py, pp, pa, self.spacing, float(speed),
                                   self.offsets, self.thresholds, follow, self.radii, self.bsplay, self.bdep,
                                   self._tips, self.res_K, self.res_S, self.res_vol, self.res_water,
                                   self.cap, self.size, self.sx0, self.sx1, self.sy0, self.sy1,

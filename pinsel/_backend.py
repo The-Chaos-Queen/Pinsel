@@ -236,3 +236,16 @@ paste_stroke = port('paste_stroke', _nb.paste_stroke, {
     19: 'tip_vol', 35: 'film_K', 36: 'film_S', 37: 'film_vol', 38: 'wet', 39: 'gloss',
     40: 'body', 41: 'drate', 45: 'base_K', 46: 'base_S', 47: 'base_vol', 48: 'top_id'},
     region_args=(37, 35, 36, 38, 39, 40, 41, 45, 46, 47, 48))   # film_vol first (gives H, W)
+
+fluid_stroke = port('fluid_stroke', _nb.fluid_stroke, {
+    12: 'tips', 13: 'res_K', 14: 'res_S', 15: 'res_vol', 16: 'res_water',
+    30: 'wc_water', 31: 'wc_K', 32: 'wc_S', 33: 'wc_m', 34: 'wc_g', 35: 'wc_st'},
+    region_args=(30, 31, 32, 33, 34, 35))
+
+render_reflectance = port('render_reflectance', _nb.render_reflectance, {13: 'out'})
+
+bake_film = port('bake_film', _nb.bake_film, {
+    1: 'below_R', 2: 'film_K', 3: 'film_S', 4: 'film_vol', 5: 'wet', 6: 'gloss', 7: 'body',
+    8: 'drate', 9: 'h_dry', 10: 'gloss_dry', 12: 'base_K', 13: 'base_S', 14: 'base_vol'})
+
+bake_deposit = port('bake_deposit', _nb.bake_deposit, {1: 'below_R', 2: 'dK', 3: 'dS'})

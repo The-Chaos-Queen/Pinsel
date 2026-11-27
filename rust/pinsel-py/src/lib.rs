@@ -146,9 +146,102 @@ fn paste_stroke(
     ))
 }
 
+
+/// Same arguments, in the same order, as `pinsel._kernels.fluid_stroke`.
+/// Returns the touched bounding box `(x0, y0, x1, y1)`.
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn fluid_stroke(
+    px: PyReadonlyArrayDyn<'_, f64>,
+    py_: PyReadonlyArrayDyn<'_, f64>,
+    pp: PyReadonlyArrayDyn<'_, f64>,
+    pa: PyReadonlyArrayDyn<'_, f64>,
+    ds: f64,
+    speed: f64,
+    boff: PyReadonlyArrayDyn<'_, f64>,
+    bthr: PyReadonlyArrayDyn<'_, f64>,
+    bfollow: PyReadonlyArrayDyn<'_, f64>,
+    brad: PyReadonlyArrayDyn<'_, f64>,
+    bsplay: PyReadonlyArrayDyn<'_, f64>,
+    bdep: PyReadonlyArrayDyn<'_, f64>,
+    mut tips: PyReadwriteArrayDyn<'_, f64>,
+    mut res_k: PyReadwriteArrayDyn<'_, f64>,
+    mut res_s: PyReadwriteArrayDyn<'_, f64>,
+    mut res_vol: PyReadwriteArrayDyn<'_, f64>,
+    mut res_water: PyReadwriteArrayDyn<'_, f64>,
+    wcap: PyReadonlyArrayDyn<'_, f64>,
+    size: f64,
+    sx0: f64,
+    sx1: f64,
+    sy0: f64,
+    sy1: f64,
+    sgamma: f64,
+    splay: f64,
+    alpha: f64,
+    lift: f64,
+    contact_soft: f64,
+    gran: f64,
+    stain: f64,
+    mut wc_water: PyReadwriteArrayDyn<'_, f32>,
+    mut wc_k: PyReadwriteArrayDyn<'_, f32>,
+    mut wc_s: PyReadwriteArrayDyn<'_, f32>,
+    mut wc_m: PyReadwriteArrayDyn<'_, f32>,
+    mut wc_g: PyReadwriteArrayDyn<'_, f32>,
+    mut wc_st: PyReadwriteArrayDyn<'_, f32>,
+    tooth: PyReadonlyArrayDyn<'_, f32>,
+    mask: PyReadonlyArrayDyn<'_, f32>,
+    water_ref: f64,
+) -> PyResult<(i64, i64, i64, i64)> {
+    use pcore::fluid::{FluidBristles, FluidParams, WcSurface};
+    use pcore::grid::{Plane, PlaneMut, SpecMut};
+    let shape = wc_water.shape();
+    if shape.len() != 2 {
+        return Err(PyValueError::new_err("pinsel_core: wc_water must be (H, W)"));
+    }
+    let (h, w) = (shape[0], shape[1]);
+    let nb = pcore::NB;
+    let prm = FluidParams {
+        ds, speed, size, sx0, sx1, sy0, sy1, sgamma, splay, alpha, lift, contact_soft, gran, stain, water_ref,
+    };
+    let mut b = FluidBristles {
+        boff: ro(&boff, "boff")?,
+        bthr: ro(&bthr, "bthr")?,
+        bfollow: ro(&bfollow, "bfollow")?,
+        brad: ro(&brad, "brad")?,
+        bsplay: ro(&bsplay, "bsplay")?,
+        bdep: ro(&bdep, "bdep")?,
+        tips: rw(&mut tips, "tips")?,
+        res_k: rw(&mut res_k, "res_K")?,
+        res_s: rw(&mut res_s, "res_S")?,
+        res_vol: rw(&mut res_vol, "res_vol")?,
+        res_water: rw(&mut res_water, "res_water")?,
+        wcap: ro(&wcap, "wcap")?,
+    };
+    let mut wc = WcSurface {
+        water: PlaneMut::new(h, w, rw(&mut wc_water, "wc_water")?),
+        k: SpecMut::new(h, w, nb, rw(&mut wc_k, "wc_K")?),
+        s: SpecMut::new(h, w, nb, rw(&mut wc_s, "wc_S")?),
+        m: PlaneMut::new(h, w, rw(&mut wc_m, "wc_m")?),
+        g: PlaneMut::new(h, w, rw(&mut wc_g, "wc_g")?),
+        st: PlaneMut::new(h, w, rw(&mut wc_st, "wc_st")?),
+    };
+    Ok(pcore::fluid::fluid_stroke(
+        ro(&px, "px")?,
+        ro(&py_, "py")?,
+        ro(&pp, "pp")?,
+        ro(&pa, "pa")?,
+        &mut b,
+        &prm,
+        &mut wc,
+        Plane::new(h, w, ro(&tooth, "tooth")?),
+        Plane::new(h, w, ro(&mask, "mask")?),
+    ))
+}
+
 #[pymodule]
 fn pinsel_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(paste_stroke, m)?)?;
+    m.add_function(wrap_pyfunction!(fluid_stroke, m)?)?;
     spectral::register(m)?;
     render::register(m)?;
     watercolor::register(m)?;
