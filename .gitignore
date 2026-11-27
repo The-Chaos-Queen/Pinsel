@@ -19,3 +19,4 @@ Thumbs.db
 *.tif
 *.tiff
 *.npz
+.venv-win/
